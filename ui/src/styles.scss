@@ -1,0 +1,183 @@
+/* ============================================================
+   מערכת עיצוב — טוקנים, ערכות בהיר/כהה, ורכיבי בסיס.
+   RTL הוא ברירת המחדל: dir="rtl" מוגדר ב-index.html.
+   ============================================================ */
+
+:root {
+  --bg: #f3f5f8;
+  --card: #ffffff;
+  --card-2: #e9edf3;
+  --ink: #141a23;
+  --muted: #59647a;
+  --faint: #8b95a8;
+  --line: #d8dee8;
+
+  --accent: #1f5fa8;
+  --accent-soft: #e4edf9;
+  --accent-line: #a9c6e8;
+
+  --ok: #1c7248;
+  --ok-soft: #e1f0e8;
+  --warn: #8e5d0c;
+  --warn-soft: #f7eedc;
+  --bad: #a62f27;
+  --bad-soft: #f8e6e4;
+
+  --radius: 10px;
+  --shadow: 0 1px 2px rgba(18, 28, 45, 0.06), 0 8px 24px -14px rgba(18, 28, 45, 0.2);
+  --mono: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --card: #151b24;
+    --card-2: #1c2430;
+    --ink: #e4e8ef;
+    --muted: #98a3b5;
+    --faint: #6c7789;
+    --line: #28313e;
+
+    --accent: #72a9e6;
+    --accent-soft: #16283c;
+    --accent-line: #2f5478;
+
+    --ok: #5fbe8c;
+    --ok-soft: #122a20;
+    --warn: #d9a64b;
+    --warn-soft: #2c2312;
+    --bad: #e0776c;
+    --bad-soft: #301a18;
+
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px -16px rgba(0, 0, 0, 0.7);
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.65 'Segoe UI', system-ui, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 { margin: 0 0 0.5rem; line-height: 1.3; }
+h1 { font-size: 1.15rem; font-weight: 600; }
+h2 { font-size: 1.05rem; font-weight: 600; }
+h3 { font-size: 0.98rem; font-weight: 600; }
+p { margin: 0 0 0.75rem; }
+a { color: var(--accent); text-underline-offset: 3px; }
+
+/* ---------------------------------------------------- פריסה */
+.page { max-width: 1040px; margin: 0 auto; padding: 22px 18px 60px; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.row > .grow { flex: 1 1 220px; }
+.stack { display: flex; flex-direction: column; gap: 14px; }
+.spacer { flex: 1; }
+
+/* ---------------------------------------------------- כרטיס */
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  box-shadow: var(--shadow);
+}
+.card + .card { margin-top: 14px; }
+.card__title { font-weight: 600; margin-bottom: 10px; }
+
+/* ---------------------------------------------------- טפסים */
+input, select, textarea {
+  font: inherit;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+  width: 100%;
+}
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+label { display: block; font-size: 0.82rem; color: var(--muted); margin-bottom: 4px; }
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border: 0;
+  border-radius: 8px;
+  padding: 9px 18px;
+  background: var(--accent);
+  color: #fff;
+  white-space: nowrap;
+}
+button.ghost { background: none; color: var(--accent); border: 1px solid var(--line); }
+button.subtle { background: var(--card-2); color: var(--ink); }
+button:disabled { opacity: 0.5; cursor: default; }
+
+/* ---------------------------------------------------- תוויות */
+.pill {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid;
+  white-space: nowrap;
+}
+.pill--ok { color: var(--ok); border-color: var(--ok); background: var(--ok-soft); }
+.pill--warn { color: var(--warn); border-color: var(--warn); background: var(--warn-soft); }
+.pill--bad { color: var(--bad); border-color: var(--bad); background: var(--bad-soft); }
+.pill--accent { color: var(--accent); border-color: var(--accent-line); background: var(--accent-soft); }
+.pill--muted { color: var(--muted); border-color: var(--line); }
+
+/* ---------------------------------------------------- טבלאות */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+th, td { text-align: right; padding: 9px 11px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: 0.78rem; white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+td.num, th.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------- טקסט */
+.muted { color: var(--muted); }
+.small { font-size: 0.84rem; }
+.mono { font-family: var(--mono); }
+code {
+  font-family: var(--mono);
+  font-size: 0.87em;
+  background: var(--card-2);
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
+  direction: ltr;
+  unicode-bidi: embed;
+}
+pre {
+  direction: ltr;
+  text-align: left;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  max-height: 420px;
+}
+
+.empty { color: var(--muted); padding: 18px 0; text-align: center; }
+.error { color: var(--bad); }
+
+/* ---------------------------------------------------- אנימציה */
+@media (prefers-reduced-motion: no-preference) {
+  .fade-in { animation: fade 0.18s ease-out; }
+}
+@keyframes fade {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: none; }
+}

@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      db:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: rag
+          POSTGRES_PASSWORD: ragpass
+          POSTGRES_DB: ragdb
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U rag -d ragdb"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+
+    env:
+      # ה-CI רץ מול ספק דטרמיניסטי: הוא בודק צנרת, אכיפת הרשאות והגנות
+      # הזרקה — כולם ארכיטקטוניים ולא תלויי מודל. מדדי איכות ניסוח נמדדים
+      # nightly מול Ollama, לא כאן.
+      DATABASE_URL: postgresql+asyncpg://rag:ragpass@localhost:5432/ragdb
+      LLM_PROVIDER: stub
+      EMBEDDING_PROVIDER: stub
+      ENVIRONMENT: test
+      EMBEDDINGS_ENABLED: "true"
+      JWT_SECRET: ci-only-secret-not-used-in-production-0123456789
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install -q -r requirements.txt
+          pip install -q ruff
+
+      - name: Lint
+        run: ruff check app scripts tests
+
+      - name: Unit tests
+        run: pytest tests -q -m "not integration" -p no:warnings
+
+      - name: Migrate and load corpus
+        run: |
+          python scripts/migrate.py
+          psql "postgresql://rag:ragpass@localhost:5432/ragdb" -f data/corpus/data/seed/seed_auth.sql
+          psql "postgresql://rag:ragpass@localhost:5432/ragdb" -f data/corpus/data/seed/seed_operational.sql
+          python scripts/ingest_corpus.py --corpus data/corpus --include-redteam
+          psql "postgresql://rag:ragpass@localhost:5432/ragdb" -f scripts/build_vector_index.sql
+        env:
+          PGPASSWORD: ragpass
+
+      - name: Integration tests
+        run: pytest tests -q -p no:warnings
+
+      - name: Retrieval regression gate
+        run: python scripts/run_eval.py --allow-stub --config v3-hybrid-rerank --gate
+
+      - name: Injection gate
+        run: python scripts/run_injection.py --gate
+
+  ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install
+        working-directory: ui
+        run: npm ci --no-audit --no-fund
+
+      - name: Type check
+        working-directory: ui
+        run: npx tsc --noEmit -p tsconfig.app.json
+
+      # --no-sandbox נדרש בתוך ה-runner; ה-launcher מוגדר ב-karma.conf.js
+      - name: Unit tests
+        working-directory: ui
+        run: npx ng test --watch=false --browsers=ChromeHeadlessNoSandbox
+
+      # הבנייה היא חלק מה-CI ולא רק מהאריזה: שגיאת תבנית ב-Angular
+      # מתגלה רק בקומפילציה, ובלי השלב הזה היא הייתה מגיעה ל-main.
+      - name: Build
+        working-directory: ui
+        run: npm run build

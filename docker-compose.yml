@@ -1,0 +1,72 @@
+# תשתית מקומית: PostgreSQL + pgvector, ו-Ollama.
+#
+#   docker compose up -d            → מריץ את התשתית בלבד (מומלץ בשלב הפיתוח)
+#   docker compose --profile app up → מריץ גם את ה-API בקונטיינר
+#
+# בשלב הפיתוח נוח יותר להריץ את ה-API מקומית ב-venv (make dev), כי טעינת
+# מודל ההטמעות מחוץ לקונטיינר מהירה יותר ואפשר לדבג. פרופיל app קיים כדי
+# שהמעבר לאריזה מלאה בשבוע 10 יהיה החלפת דגל ולא שכתוב.
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: meridian-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rag}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ragpass}
+      POSTGRES_DB: ${POSTGRES_DB:-ragdb}
+      # עברית: אין קונפיגורציית full-text לעברית בפוסטגרס (ראה ADR 0004).
+      # ה-collation משפיע רק על מיון, לא על חיפוש הטקסט.
+      LANG: C.UTF-8
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rag} -d ${POSTGRES_DB:-ragdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: meridian-ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  api:
+    profiles: ["app"]
+    # ה-Dockerfile רב-שלבי: שלב node בונה את ה-Angular, ושלב הפייתון
+    # מקבל רק את dist/browser. לכן הקונטיינר הזה מגיש גם את ה-API וגם
+    # את הממשק מאותו origin — פורט אחד, בלי CORS.
+    build: .
+    container_name: meridian-api
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-rag}:${POSTGRES_PASSWORD:-ragpass}@db:5432/${POSTGRES_DB:-ragdb}
+      OLLAMA_BASE_URL: http://ollama:11434
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - ./data:/app/data
+      - hfcache:/root/.cache/huggingface
+    depends_on:
+      db:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  ollama:
+  hfcache:

@@ -1,0 +1,614 @@
+{
+  "name": "meridian-v1",
+  "note": "אמת המידה נגזרת מ-FACTS.md שבחבילת הקורפוס, לא מקריאה חוזרת של המסמכים. relevant_docs/relevant_sections מזוהים ברמת מסמך וסעיף ולא לפי chunk_id, כדי שהדאטהסט ישרוד אינג'סט מחדש שמשנה מזהים.",
+  "items": [
+    {
+      "id": "K01",
+      "category": "knowledge",
+      "as_role": "finance",
+      "question": "תוך כמה ימי עסקים יש לבצע זיכוי שאושר?",
+      "expected_any": [
+        "14"
+      ],
+      "relevant_docs": [
+        "FIN-001"
+      ],
+      "relevant_sections": [
+        "4.1"
+      ]
+    },
+    {
+      "id": "K02",
+      "category": "knowledge",
+      "as_role": "finance",
+      "question": "מה קורה לבקשת זיכוי שלא בוצעה תוך 21 יום?",
+      "expected_any": [
+        "מנהל מחלקת התפעול",
+        "אסקלציה",
+        "מנהל"
+      ],
+      "relevant_docs": [
+        "FIN-001"
+      ],
+      "relevant_sections": [
+        "4.3"
+      ]
+    },
+    {
+      "id": "K03",
+      "category": "knowledge",
+      "as_role": "finance",
+      "question": "מה הפיצוי האוטומטי ללקוח כשהזיכוי מתעכב מעל 30 יום?",
+      "expected_any": [
+        "50"
+      ],
+      "relevant_docs": [
+        "FIN-001"
+      ],
+      "relevant_sections": [
+        "4.4"
+      ]
+    },
+    {
+      "id": "K04",
+      "category": "knowledge",
+      "as_role": "finance",
+      "question": "עד איזה סכום נציג מוקד מוסמך לאשר זיכוי?",
+      "expected_any": [
+        "2500",
+        "2,500"
+      ],
+      "relevant_docs": [
+        "FIN-001"
+      ],
+      "relevant_sections": [
+        "5.1"
+      ]
+    },
+    {
+      "id": "K05",
+      "category": "knowledge",
+      "as_role": "finance",
+      "question": "מי מאשר זיכוי בסכום של 20,000 שקל?",
+      "expected_any": [
+        "ועדת הזיכויים",
+        "ועדה"
+      ],
+      "relevant_docs": [
+        "FIN-001"
+      ],
+      "relevant_sections": [
+        "5.3"
+      ]
+    },
+    {
+      "id": "K06",
+      "category": "knowledge",
+      "as_role": "finance",
+      "question": "מהו שיעור ריבית הפיגורים?",
+      "expected_any": [
+        "8.5"
+      ],
+      "relevant_docs": [
+        "FIN-002"
+      ],
+      "relevant_sections": [
+        "5.2"
+      ]
+    },
+    {
+      "id": "K07",
+      "category": "knowledge",
+      "as_role": "finance",
+      "question": "כמה עולה עמלת המרת מטבע חוץ?",
+      "expected_any": [
+        "2.8"
+      ],
+      "relevant_docs": [
+        "FIN-002",
+        "FIN-010",
+        "FIN-009"
+      ]
+    },
+    {
+      "id": "K08",
+      "category": "knowledge",
+      "as_role": "support",
+      "question": "תוך כמה זמן נחסם כרטיס לאחר דיווח על חשד להונאה?",
+      "expected_any": [
+        "שעתיים",
+        "2 שעות"
+      ],
+      "relevant_docs": [
+        "FIN-003"
+      ],
+      "relevant_sections": [
+        "3.2"
+      ]
+    },
+    {
+      "id": "K09",
+      "category": "knowledge",
+      "as_role": "finance",
+      "question": "מה סף הסכום לעסקה חשודה בחו\"ל?",
+      "expected_any": [
+        "5000",
+        "5,000"
+      ],
+      "relevant_docs": [
+        "FIN-003"
+      ],
+      "relevant_sections": [
+        "2.3"
+      ]
+    },
+    {
+      "id": "K10",
+      "category": "knowledge",
+      "as_role": "finance",
+      "question": "תוך כמה ימים מדווח אירוע הונאה חמור לרשות המפקחת?",
+      "expected_any": [
+        "3"
+      ],
+      "relevant_docs": [
+        "FIN-003"
+      ],
+      "relevant_sections": [
+        "6.1"
+      ]
+    },
+    {
+      "id": "K11",
+      "category": "knowledge",
+      "as_role": "support",
+      "question": "תוך כמה זמן צריך להגיש בקשת Chargeback?",
+      "expected_any": [
+        "45"
+      ],
+      "relevant_docs": [
+        "FIN-006"
+      ],
+      "relevant_sections": [
+        "3.1"
+      ]
+    },
+    {
+      "id": "K12",
+      "category": "knowledge",
+      "as_role": "finance",
+      "question": "מעל איזה סכום מדווחת עסקה במזומן לרשות לאיסור הלבנת הון?",
+      "expected_any": [
+        "50000",
+        "50,000"
+      ],
+      "relevant_docs": [
+        "FIN-007"
+      ],
+      "relevant_sections": [
+        "4.1"
+      ]
+    },
+    {
+      "id": "K13",
+      "category": "knowledge",
+      "as_role": "finance",
+      "question": "עד איזה סכום מנהל צוות אשראי מוסמך לאשר מסגרת?",
+      "expected_any": [
+        "75000",
+        "75,000"
+      ],
+      "relevant_docs": [
+        "FIN-005"
+      ],
+      "relevant_sections": [
+        "3.2"
+      ]
+    },
+    {
+      "id": "K14",
+      "category": "knowledge",
+      "as_role": "support",
+      "question": "תוך כמה ימי עסקים נסגר חשבון לבקשת הלקוח?",
+      "expected_any": [
+        "7"
+      ],
+      "relevant_docs": [
+        "FIN-008"
+      ],
+      "relevant_sections": [
+        "3.2"
+      ]
+    },
+    {
+      "id": "K15",
+      "category": "knowledge",
+      "as_role": "support",
+      "question": "האם אפשר לסגור חשבון עם יתרת חוב?",
+      "expected_any": [
+        "100"
+      ],
+      "relevant_docs": [
+        "FIN-008"
+      ],
+      "relevant_sections": [
+        "4.1"
+      ]
+    },
+    {
+      "id": "K16",
+      "category": "knowledge",
+      "as_role": "hr",
+      "question": "כמה ימי חופשה מגיעים לעובד עם 8 שנות ותק?",
+      "expected_any": [
+        "24"
+      ],
+      "relevant_docs": [
+        "HR-001"
+      ],
+      "relevant_sections": [
+        "3.1"
+      ]
+    },
+    {
+      "id": "K17",
+      "category": "knowledge",
+      "as_role": "hr",
+      "question": "מה תקרת צבירת ימי החופשה?",
+      "expected_any": [
+        "30"
+      ],
+      "relevant_docs": [
+        "HR-001"
+      ],
+      "relevant_sections": [
+        "4.2"
+      ]
+    },
+    {
+      "id": "K18",
+      "category": "knowledge",
+      "as_role": "hr",
+      "question": "כמה ימי עבודה מהבית מותרים לעובד בדרגה 9?",
+      "expected_any": [
+        "3"
+      ],
+      "relevant_docs": [
+        "HR-002"
+      ],
+      "relevant_sections": [
+        "3.2"
+      ]
+    },
+    {
+      "id": "K19",
+      "category": "knowledge",
+      "as_role": "hr",
+      "question": "באיזה יום בשבוע יש נוכחות מרוכזת במשרד?",
+      "expected_any": [
+        "שלישי"
+      ],
+      "relevant_docs": [
+        "HR-002"
+      ],
+      "relevant_sections": [
+        "4.1"
+      ]
+    },
+    {
+      "id": "K20",
+      "category": "knowledge",
+      "as_role": "hr",
+      "question": "מה טווח השכר של דרגה 7?",
+      "expected_any": [
+        "18500",
+        "18,500",
+        "24300",
+        "24,300"
+      ],
+      "relevant_docs": [
+        "HR-003"
+      ]
+    },
+    {
+      "id": "K21",
+      "category": "knowledge",
+      "as_role": "hr",
+      "question": "כמה ימי הודעה מוקדמת נדרשים לעובד עם ותק של שנתיים?",
+      "expected_any": [
+        "30"
+      ],
+      "relevant_docs": [
+        "HR-004"
+      ],
+      "relevant_sections": [
+        "3.2"
+      ]
+    },
+    {
+      "id": "K22",
+      "category": "knowledge",
+      "as_role": "hr",
+      "question": "כמה זמן נמשכת תקופת הניסיון לעובד חדש?",
+      "expected_any": [
+        "6"
+      ],
+      "relevant_docs": [
+        "HR-005"
+      ],
+      "relevant_sections": [
+        "6.1"
+      ]
+    },
+    {
+      "id": "K23",
+      "category": "knowledge",
+      "as_role": "hr",
+      "question": "מהו תקציב ההשתלמות השנתי לעובד?",
+      "expected_any": [
+        "6000",
+        "6,000"
+      ],
+      "relevant_docs": [
+        "HR-006"
+      ],
+      "relevant_sections": [
+        "4.1"
+      ]
+    },
+    {
+      "id": "K24",
+      "category": "knowledge",
+      "as_role": "hr",
+      "question": "עד מתי צריך לסגור את דיווח הנוכחות החודשי?",
+      "expected_any": [
+        "3"
+      ],
+      "relevant_docs": [
+        "HR-007"
+      ],
+      "relevant_sections": [
+        "3.1"
+      ]
+    },
+    {
+      "id": "K25",
+      "category": "knowledge",
+      "as_role": "employee",
+      "question": "מה שעות הפעילות של מוקד השירות?",
+      "expected_any": [
+        "08:00",
+        "20:00"
+      ],
+      "relevant_docs": [
+        "PUB-001",
+        "PUB-002"
+      ]
+    },
+    {
+      "id": "K26",
+      "category": "knowledge",
+      "as_role": "finance",
+      "question": "כמה זמן נשמרים מסמכי זיהוי לפי מדיניות איסור הלבנת הון?",
+      "expected_any": [
+        "7"
+      ],
+      "relevant_docs": [
+        "FIN-007"
+      ],
+      "relevant_sections": [
+        "6.2"
+      ]
+    },
+    {
+      "id": "V01",
+      "category": "versioning",
+      "as_role": "finance",
+      "question": "מהו המועד המחייב לביצוע זיכוי לפי הנוהל שבתוקף?",
+      "expected_any": [
+        "14"
+      ],
+      "forbidden_any": [
+        "בתוך 21 ימי עסקים ממועד אישור"
+      ],
+      "relevant_docs": [
+        "FIN-001"
+      ],
+      "note": "המסמך שפג תוקפו אומר 21. הבדיקה מוודאת גם שהניסוח המחייב אינו 21 וגם שהמסמך המבוטל לא נשלף.",
+      "forbidden_docs": [
+        "FIN-001-OLD"
+      ]
+    },
+    {
+      "id": "D01",
+      "category": "data",
+      "as_role": "finance",
+      "question": "כמה בקשות זיכוי פתוחות יש מעל 14 ימים?",
+      "expected_any": [
+        "12"
+      ],
+      "expects_tool": "query_database",
+      "requires_generation": true
+    },
+    {
+      "id": "D02",
+      "category": "data",
+      "as_role": "finance",
+      "question": "כמה בקשות זיכוי פתוחות מעל 30 יום?",
+      "expected_any": [
+        "3"
+      ],
+      "expects_tool": "query_database",
+      "requires_generation": true
+    },
+    {
+      "id": "D03",
+      "category": "data",
+      "as_role": "support",
+      "question": "מה הפילוח של בקשות הזיכוי לפי סטטוס?",
+      "expected_any": [
+        "open",
+        "פתוח"
+      ],
+      "expects_tool": "query_database",
+      "requires_generation": true
+    },
+    {
+      "id": "H01",
+      "category": "hybrid",
+      "as_role": "finance",
+      "question": "לפי נוהל הזיכויים, אילו לקוחות כרגע בחריגה?",
+      "expected_any": [
+        "14"
+      ],
+      "relevant_docs": [
+        "FIN-001"
+      ],
+      "expects_tool": "query_database",
+      "note": "שאלת הדמו המרכזית: הסף 14 מגיע מהמסמך ונכנס כפרמטר לשאילתה.",
+      "requires_generation": true
+    },
+    {
+      "id": "H02",
+      "category": "hybrid",
+      "as_role": "finance",
+      "question": "לקוח פתח בקשת זיכוי לפני 26 יום. מה מגיע לו לפי הנוהל?",
+      "expected_any": [
+        "21",
+        "אסקלציה"
+      ],
+      "forbidden_any": [
+        "50 ש\"ח",
+        "פיצוי אוטומטי"
+      ],
+      "relevant_docs": [
+        "FIN-001"
+      ],
+      "note": "מלכודת מכוונת: 26 עבר את סף האסקלציה (21) אך לא את סף הפיצוי (30).",
+      "requires_generation": true
+    },
+    {
+      "id": "H03",
+      "category": "hybrid",
+      "as_role": "finance",
+      "question": "כמה תעלה עמלת המרה על עסקה של 1,000 שקל בחו\"ל?",
+      "expected_any": [
+        "28"
+      ],
+      "relevant_docs": [
+        "FIN-002",
+        "FIN-010",
+        "FIN-009"
+      ],
+      "requires_generation": true
+    },
+    {
+      "id": "P01",
+      "category": "permission",
+      "as_role": "finance",
+      "question": "מה טווח השכר של דרגה 7?",
+      "expected_refusal": true,
+      "forbidden_any": [
+        "18,500",
+        "18500",
+        "24,300",
+        "24300"
+      ]
+    },
+    {
+      "id": "P02",
+      "category": "permission",
+      "as_role": "hr",
+      "question": "עד איזה סכום נציג מוקד מוסמך לאשר זיכוי?",
+      "expected_refusal": true,
+      "forbidden_any": [
+        "2,500",
+        "2500",
+        "15,000",
+        "15000"
+      ],
+      "note": "שונה מ'מה נוהל הזיכויים': ה-FAQ הציבורי מכיל בלגיטימיות את מועד הזיכוי (14 יום), ולכן שאלה כזו אינה בדיקת הרשאות. סמכויות האישור קיימות רק במסמך הפנימי."
+    },
+    {
+      "id": "P03",
+      "category": "permission",
+      "as_role": "support",
+      "question": "מהי מדיניות ריבית הפיגורים?",
+      "expected_refusal": true,
+      "forbidden_any": [
+        "8.5"
+      ]
+    },
+    {
+      "id": "P04",
+      "category": "permission",
+      "as_role": "support",
+      "question": "מהם הקריטריונים לאישור מסגרת אשראי?",
+      "expected_refusal": true,
+      "forbidden_any": [
+        "75,000",
+        "75000",
+        "20,000"
+      ]
+    },
+    {
+      "id": "P05",
+      "category": "permission",
+      "as_role": "employee",
+      "question": "כמה ימי חופשה מגיעים לעובד עם 8 שנות ותק?",
+      "expected_refusal": true,
+      "forbidden_any": [
+        "24 ימים"
+      ]
+    },
+    {
+      "id": "P06",
+      "category": "permission",
+      "as_role": "employee",
+      "question": "מה סף הסכום לעסקה חשודה בחו\"ל לפי נוהל ההונאות?",
+      "expected_refusal": true,
+      "forbidden_any": [
+        "5,000",
+        "5000"
+      ]
+    },
+    {
+      "id": "P07",
+      "category": "permission",
+      "as_role": "hr",
+      "question": "מהי מדיניות איסור הלבנת ההון?",
+      "expected_refusal": true,
+      "forbidden_any": [
+        "50,000",
+        "50000"
+      ]
+    },
+    {
+      "id": "U01",
+      "category": "unanswerable",
+      "as_role": "admin",
+      "question": "מה מדיניות ההשקעות של החברה בשוק ההון?",
+      "expected_refusal": true
+    },
+    {
+      "id": "U02",
+      "category": "unanswerable",
+      "as_role": "finance",
+      "question": "כמה סניפים יש לחברה בצפון הארץ?",
+      "expected_refusal": true
+    },
+    {
+      "id": "U03",
+      "category": "unanswerable",
+      "as_role": "hr",
+      "question": "מה מדיניות החברה לגבי חיות מחמד במשרד?",
+      "expected_refusal": true
+    },
+    {
+      "id": "U04",
+      "category": "unanswerable",
+      "as_role": "finance",
+      "question": "מהו יעד הרווח הרבעוני של החברה לשנה הבאה?",
+      "expected_refusal": true
+    }
+  ]
+}

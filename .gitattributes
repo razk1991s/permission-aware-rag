@@ -1,0 +1,25 @@
+# סופי שורה — נועל את מה ששובר פרויקטים חוצי־פלטפורמות.
+#
+# ברירת המחדל של git על ווינדוס (autocrlf=true) הופכת קבצים ל-CRLF
+# בצ'ק־אאוט. עבור פייתון, SQL ו-JS זה לא מזיק, אבל זה כן יוצר דיפים
+# רועשים כשאותו ריפו נערך משתי מערכות. הקובץ הזה מכריע במקום להשאיר
+# את זה להגדרה מקומית של כל מפתח.
+
+* text=auto eol=lf
+
+# סקריפטים של ווינדוס נשארים CRLF — זו הציפייה של PowerShell.
+*.ps1  text eol=crlf
+*.cmd  text eol=crlf
+*.bat  text eol=crlf
+
+# בינאריים: אסור לגעת בהם בכלל.
+*.png   binary
+*.jpg   binary
+*.ico   binary
+*.pdf   binary
+*.docx  binary
+*.xlsx  binary
+*.pptx  binary
+*.woff  binary
+*.woff2 binary
+*.zip   binary
