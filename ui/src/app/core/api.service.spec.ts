@@ -19,16 +19,16 @@ describe('ApiService', () => {
   afterEach(() => mock.verify());
 
   it('posts a chat question with an explicit null session', () => {
-    api.chat('מהי ריבית הפיגורים?').subscribe();
+    api.chat('What is the late-payment interest rate?').subscribe();
     const req = mock.expectOne('/api/chat');
     expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual({ question: 'מהי ריבית הפיגורים?', session_id: null });
+    expect(req.request.body).toEqual({ question: 'What is the late-payment interest rate?', session_id: null });
     req.flush({});
   });
 
   it('never sends a user id or an allowed-document list', () => {
-    // ההרשאות נפתרות בשרת מתוך הטוקן (ADR 0002). אם הלקוח היה שולח
-    // user_id או רשימת מסמכים, זה היה הופך אותם לקלט שניתן לזייף.
+     // Authorization is resolved by the server from the token (ADR 0002).
+     // Sending user_id or document lists from the client would make them forgeable input.
     api.chat('x').subscribe();
     const req = mock.expectOne('/api/chat');
     const body = JSON.stringify(req.request.body);

@@ -1,4 +1,4 @@
-"""הטמעות. שני מימושים: מודל מקומי אמיתי, ו-stub דטרמיניסטי לבדיקות."""
+"""Embeddings: a real local model and a deterministic test stub."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ class EmbeddingsDisabled(RuntimeError):
 
 
 def _load_model():
-    """טעינה חד־פעמית. ההורדה הראשונה של bge-m3 שוקלת בערך 2.3GB."""
+    """Load once; the first bge-m3 download is about 2.3 GB."""
     global _model
     if _model is None:
         from sentence_transformers import SentenceTransformer
@@ -33,24 +33,24 @@ def _stub_vectors(texts: list[str]) -> list[list[float]]:
 
 
 def embed_texts(texts: list[str], *, batch_size: int | None = None) -> list[list[float]]:
-    """מחזיר וקטורים מנורמלים ל-L2.
+    """Return vectors normalized to L2.
 
-    נרמול הופך מכפלה סקלרית לקוסינוס, וזה מה ש-pgvector מחשב עם האופרטור
-    <=>. בלי נרמול, אורך הווקטור מזהם את הדירוג.
+    Normalization makes the dot product equivalent to cosine similarity, which
+    pgvector computes with <=>. Without normalization, vector length pollutes ranking.
     """
     if not settings.embeddings_enabled:
         raise EmbeddingsDisabled(
-            "ההטמעות מכובות (EMBEDDINGS_ENABLED=false). "
-            "הפעל אותן, או הרץ אינג'סט עם --skip-embeddings."
+            "Embeddings are disabled (EMBEDDINGS_ENABLED=false). "
+            "Enable them or run ingestion with --skip-embeddings."
         )
     if not texts:
         return []
 
     if settings.embedding_provider == "stub":
-        # ‏stub אינו סמנטי: טקסטים שחולקים מילים יהיו קרובים, וזהו.
-        # מספיק כדי לבדוק שהשליפה והאינדקס עובדים, חסר משמעות למדידת איכות.
+        # The stub is not semantic: texts sharing words will be close.
+        # It tests retrieval and indexing, but is meaningless for quality measurement.
         if not settings.is_dev:
-            raise RuntimeError("אסור להשתמש ב-embedding stub מחוץ לסביבת פיתוח")
+            raise RuntimeError("The embedding stub is not allowed outside development")
         return _stub_vectors(texts)
 
     model = _load_model()
@@ -64,8 +64,8 @@ def embed_texts(texts: list[str], *, batch_size: int | None = None) -> list[list
     dim = vectors.shape[1]
     if dim != settings.embedding_dim:
         raise ValueError(
-            f"המודל מחזיר {dim} מימדים אבל הסכמה מצפה ל-{settings.embedding_dim}. "
-            f"עדכן EMBEDDING_DIM ואת טיפוס העמודה chunks.embedding, ובנה מחדש את האינדקס."
+            f"The model returns {dim} dimensions but the schema expects {settings.embedding_dim}. "
+            "Update EMBEDDING_DIM and chunks.embedding, then rebuild the index."
         )
     return vectors.tolist()
 

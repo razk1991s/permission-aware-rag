@@ -1,8 +1,7 @@
-"""צינור השליפה המלא: הרשאות → הבנה → שליפה כפולה → RRF → דירוג מחדש → הקשר.
+"""Full retrieval pipeline: authorization -> understanding -> dual retrieval -> RRF -> reranking -> context.
 
-הפונקציה `retrieve` היא נקודת הכניסה היחידה לשליפה בכל המערכת — גם
-מ-/chat, גם מהכלי של הסוכן, וגם משרת ה-MCP. כך אין מסלול שעוקף את
-בקרת הגישה.
+`retrieve` is the single retrieval entry point for /chat, the agent tool, and
+the MCP server, so no path bypasses access control.
 """
 
 from __future__ import annotations
@@ -77,7 +76,7 @@ class RetrievalResult:
 
     @property
     def below_threshold(self) -> bool:
-        """האם הציון המוביל נמוך מכדי לענות עליו."""
+        """Whether the top score is too low to answer."""
         if not self.candidates:
             return True
         threshold = (
@@ -91,7 +90,7 @@ class RetrievalResult:
 async def understand(
     question: str, *, gateway: LLMGateway, user_id: int | None = None
 ) -> Understanding:
-    """סיווג כוונה והרחבת ניסוחים. נכשל רך: אם המודל לא ענה — ממשיכים."""
+    """Classify intent and expand queries. Fail soft if the model does not respond."""
     if not settings.multi_query_enabled:
         return Understanding(queries=[question])
 
@@ -117,7 +116,7 @@ async def understand(
     queries = [question] + [
         q for q in (data.get("expanded_queries") or []) if isinstance(q, str) and q.strip()
     ]
-    # דה־דופליקציה תוך שמירת סדר
+    # Deduplicate while preserving order.
     seen: set[str] = set()
     unique = [q for q in queries if not (q.lower() in seen or seen.add(q.lower()))]
 
@@ -145,7 +144,7 @@ async def retrieve(
     hybrid = settings.hybrid_enabled if hybrid is None else hybrid
     timings: dict[str, int] = {}
 
-    # --- 1. הבנת השאלה ---
+    # --- 1. Question understanding ---
     t0 = time.perf_counter()
     if use_understanding:
         u = await understand(question, gateway=gateway, user_id=user_id)
@@ -154,7 +153,7 @@ async def retrieve(
     timings["understanding"] = int((time.perf_counter() - t0) * 1000)
     effective_domain = domain or u.domain_hint
 
-    # --- 2. שליפה כפולה על כל ניסוח ---
+    # --- 2. Dual retrieval for every query ---
     t0 = time.perf_counter()
     ranked_lists: list[list[Candidate]] = []
     for query in u.queries:
@@ -183,13 +182,13 @@ async def retrieve(
             ranked_lists.append(lex)
     timings["retrieval"] = int((time.perf_counter() - t0) * 1000)
 
-    # --- 3. מיזוג ---
+    # --- 3. Fusion ---
     fused = reciprocal_rank_fusion(ranked_lists)
 
     if settings.neighbor_expansion and fused:
         fused = await expand_with_neighbours(conn, fused, user_id=user_id)
 
-    # --- 4. דירוג מחדש ---
+    # --- 4. Reranking ---
     t0 = time.perf_counter()
     outcome = rerank(question, fused, top_k=top_k, enabled=use_rerank)
     timings["rerank"] = int((time.perf_counter() - t0) * 1000)
@@ -205,10 +204,10 @@ async def retrieve(
 
 
 def build_context(candidates: list[Candidate], *, max_tokens: int | None = None) -> list[Candidate]:
-    """בוחר אילו קטעים ייכנסו להקשר, לפי תקציב טוקנים.
+    """Choose chunks for context within the token budget.
 
-    החיתוך הוא מלמטה — מוותרים על הקטעים החלשים, לא חותכים קטע באמצע.
-    קטע חתוך גרוע יותר מקטע חסר: הוא נראה שלם ואינו.
+    Drop weaker chunks rather than cutting one in the middle. A truncated chunk
+    is worse than a missing chunk because it appears complete when it is not.
     """
     budget = max_tokens or settings.max_context_tokens
     chosen: list[Candidate] = []
@@ -217,7 +216,7 @@ def build_context(candidates: list[Candidate], *, max_tokens: int | None = None)
 
     for cand in candidates:
         fingerprint = cand.content[:120]
-        if fingerprint in seen_content:      # דה־דופליקציה של קטעים חופפים
+        if fingerprint in seen_content:      # Deduplicate overlapping chunks.
             continue
         tokens = max(1, len(cand.content) // 3)
         if used + tokens > budget and chosen:

@@ -82,11 +82,11 @@ interface Turn {
             [ngModel]="question()"
             (ngModelChange)="question.set($event)"
             (keydown.enter)="ask()"
-            placeholder="לדוגמה: לפי נוהל הזיכויים, אילו לקוחות כרגע בחריגה?"
-            aria-label="שאלה"
+            placeholder="For example: Which customers currently exceed the refund limit?"
+            aria-label="Question"
           />
           <button [disabled]="pending() || !question().trim()" (click)="ask()">
-            {{ pending() ? 'חושב…' : 'שאל' }}
+            {{ pending() ? 'Thinking…' : 'Ask' }}
           </button>
         </div>
 
@@ -112,7 +112,7 @@ interface Turn {
               @if (r.citations.length) {
                 <div style="margin-top:10px">
                   @for (c of r.citations; track c.chunk_id) {
-                    <span class="cite" [title]="'ציון ' + c.score">
+                    <span class="cite" [title]="'Score ' + c.score">
                       {{ c.marker }} · {{ c.title }}
                       @if (c.section_path) {
                         › {{ lastSection(c.section_path) }}
@@ -132,21 +132,21 @@ interface Turn {
               <div class="meta">
                 <span class="pill pill--accent">{{ r.intent ?? '—' }}</span>
                 <span class="pill" [class]="r.refused ? 'pill--warn' : 'pill--ok'">
-                  {{ r.refused ? 'סירוב' : 'נענה' }}
+                  {{ r.refused ? 'Refused' : 'Answered' }}
                 </span>
                 @if (r.stop_reason !== 'completed') {
                   <span class="pill pill--muted">{{ r.stop_reason }}</span>
                 }
                 @if (r.groundedness !== null) {
-                  <span class="pill pill--muted">ביסוס {{ r.groundedness }}</span>
+                  <span class="pill pill--muted">Groundedness {{ r.groundedness }}</span>
                 }
                 <span class="pill pill--muted">{{ r.latency_ms }} ms</span>
                 <span class="spacer"></span>
-                <a [routerLink]="['/traces', r.trace_uuid]">טרייס מלא ←</a>
+                <a [routerLink]="['/traces', r.trace_uuid]">Full trace -></a>
               </div>
 
               @if (r.refused && r.refusal_reason) {
-                <div class="small muted" style="margin-top:6px">סיבה: {{ r.refusal_reason }}</div>
+                <div class="small muted" style="margin-top:6px">Reason: {{ r.refusal_reason }}</div>
               }
             } @else if (turn.error) {
               <div class="error">{{ turn.error }}</div>
@@ -154,7 +154,7 @@ interface Turn {
           </div>
         } @empty {
           <div class="empty">
-            שאל שאלה כדי להתחיל. נסה את אותה שאלה בשני תפקידים שונים.
+            Ask a question to begin. Try the same question with two different roles.
           </div>
         }
       </div>
@@ -197,7 +197,7 @@ export class ChatComponent {
         this.pending.set(false);
       },
       error: (err) => {
-        const detail = err?.error?.detail ?? err?.message ?? 'שגיאה לא ידועה';
+        const detail = err?.error?.detail ?? err?.message ?? 'Unknown error';
         this.turns.update((t) => [{ question: q, response: null, error: detail }, ...t]);
         this.pending.set(false);
       },

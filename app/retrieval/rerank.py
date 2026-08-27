@@ -1,12 +1,12 @@
-"""דירוג מחדש עם cross-encoder.
+"""Reranking with a cross-encoder.
 
-ההבדל מהשלב הקודם: החיפוש הווקטורי מקודד את השאלה ואת הקטע **בנפרד**
-ומשווה וקטורים — מהיר, אבל לא רואה את האינטראקציה ביניהם. ה-cross-encoder
-מקודד את הזוג **יחד**, ולכן מדויק בהרבה ואיטי בהרבה. זו בדיוק הסיבה
-שהוא רץ רק על 30 מועמדים ולא על הקורפוס.
+Vector search encodes the question and chunk **separately** and compares
+vectors: fast, but unable to see their interaction. The cross-encoder encodes
+the pair **together**, making it more accurate and slower, so it runs on only
+30 candidates rather than the entire corpus.
 
-זהו הרכיב שצפוי לתת את הקפיצה הגדולה ביותר במדד — ולכן מודדים לפניו
-ואחריו, ולא מניחים.
+This component is expected to produce the largest metric improvement, so it is
+measured before and after rather than assumed to help.
 """
 
 from __future__ import annotations
@@ -42,10 +42,10 @@ def _load_cross_encoder():
 
 
 def _lexical_overlap_score(query: str, content: str) -> float:
-    """ציון גיבוי דטרמיניסטי, לשימוש כשהרירנקר האמיתי אינו זמין.
+    """Deterministic fallback score used when the real reranker is unavailable.
 
-    זהו חפיפת טוקנים משוקללת — לא תחליף ל-cross-encoder, ולא מתיימר
-    להיות. הוא קיים כדי שהצנרת תרוץ בבדיקות וב-CI בלי GPU.
+    It is weighted token overlap, not a replacement for a cross-encoder. It
+    exists so tests and CI can run without a GPU.
     """
     q = set(re.findall(r"\w+", query.lower()))
     c = re.findall(r"\w+", content.lower())
@@ -64,11 +64,10 @@ def rerank(
     top_k: int | None = None,
     enabled: bool | None = None,
 ) -> RerankOutcome:
-    """מדרג מחדש ומחזיר את ה-top_k, כולל שמירת השינוי במיקום.
+    """Rerank and return top_k while preserving position changes.
 
-    ‏rerank_delta הוא ההפרש בין המיקום לפני הדירוג מחדש לאחריו. זה
-    השדה שמאפשר להראות בצופה הטרייסים ש"קטע #8834 עלה ממקום 2 למקום 1"
-    — הוכחה חזותית שהרכיב עושה משהו.
+    `rerank_delta` is the difference between the original and new positions.
+    The trace viewer uses it to show that a chunk moved from position 2 to 1.
     """
     top_k = top_k or settings.retrieval_top_k
     use = settings.rerank_enabled if enabled is None else enabled
@@ -86,8 +85,8 @@ def rerank(
         model = _load_cross_encoder()
         pairs = [(query, c.content) for c in candidates]
         raw = model.predict(pairs, show_progress_bar=False)
-        # ציוני cross-encoder הם לוגיטים; sigmoid מביא אותם ל-[0,1]
-        # כדי שסף הסירוב יהיה ניתן לפירוש.
+        # Cross-encoder scores are logits; sigmoid maps them to [0,1] so the
+        # refusal threshold remains interpretable.
         scores = [1 / (1 + math.exp(-float(s))) for s in raw]
         model_name = settings.reranker_model
     except Exception as exc:  # noqa: BLE001

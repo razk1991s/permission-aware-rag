@@ -1,64 +1,64 @@
-# הערכה
+# Evaluation
 
-## מה נמדד ולמה
+## What is measured and why
 
-| מדד | סוג | תדירות | שער | חוסם מול stub? |
+| Metric | Type | Frequency | Gate | Blocks with stub? |
 |---|---|---|---|---|
-| `permission_leak_rate` | דטרמיניסטי | כל PR | **0** — חוסם | **כן** |
-| `injection_success_rate` | דטרמיניסטי | כל PR | **0** — חוסם | **כן** |
-| `recall@5` | דטרמיניסטי | כל PR | ≥0.70, ירידה ≤0.03 מול baseline | **כן** |
-| `mrr` | דטרמיניסטי | כל PR | ≥0.50 | **כן** |
-| `citation_accuracy` | תלוי ייצור | nightly | ≥0.95 | לא |
-| `refusal_accuracy` | תלוי ייצור | nightly | ≥0.80 | לא |
-| `false_refusal_rate` | תלוי ייצור | nightly | ≤0.05 | לא |
-| `missed_refusal_rate` | תלוי ייצור | nightly | ≤0.20 — מדווח | לא |
-| `hallucination_rate` | LLM-as-judge | nightly | ≤0.15 — מדווח | לא |
-| `p95_latency_ms` | תפעולי | nightly | ≤15,000 — מדווח | לא |
+| `permission_leak_rate` | Deterministic | Every PR | **0** - blocking | **Yes** |
+| `injection_success_rate` | Deterministic | Every PR | **0** - blocking | **Yes** |
+| `recall@5` | Deterministic | Every PR | >=0.70, drop <=0.03 from baseline | **Yes** |
+| `mrr` | Deterministic | Every PR | >=0.50 | **Yes** |
+| `citation_accuracy` | Generation-dependent | Nightly | >=0.95 | No |
+| `refusal_accuracy` | Generation-dependent | Nightly | >=0.80 | No |
+| `false_refusal_rate` | Generation-dependent | Nightly | <=0.05 | No |
+| `missed_refusal_rate` | Generation-dependent | Nightly | <=0.20 - reported | No |
+| `hallucination_rate` | LLM-as-judge | Nightly | <=0.15 - reported | No |
+| `p95_latency_ms` | Operational | Nightly | <=15,000 - reported | No |
 
-מדדי שליפה זולים ודטרמיניסטיים, ולכן הם שער merge. מדדי ייצור רועשים, ולכן הם מדווחים ולא חוסמים.
+Retrieval metrics are inexpensive and deterministic, so they are merge gates. Generation metrics are noisy, so they are reported rather than blocking.
 
-### העמודה האחרונה היא הנקודה
+### The last column is the important one
 
-ה-CI רץ מול ספק stub (ADR 0009). שער שתלוי במה שהמודל **בוחר לומר** — האם סירב, האם ציטט נכון — מודד מול stub את התנהגות ה-stub, לא את המערכת. לכן `Gate.requires_generation` מוריד את החסימה שלו שם, והערך עדיין מודפס כדי שרגרסיה תיראה.
+CI runs with the stub provider (ADR 0009). A gate that depends on what the model chooses to say, such as whether it refused or cited correctly, measures stub behavior rather than the system. `Gate.requires_generation` therefore disables blocking for that gate in stub runs while still printing its value so regressions remain visible.
 
-מה שאסור לתת ל-stub להרפות: `permission_leak_rate` ו-`injection_success_rate`. הם נקבעים ב-SQL ובקוד האכיפה ולא בניסוח, ולכן הם חוסמים תמיד. `tests/test_gates.py` נועל בדיוק את זה — שער אבטחה שמפסיק לחסום כי "רצים על stub" הוא הדרך שבה בדיקה נעלמת בלי שאיש הבחין.
+The stub must never weaken `permission_leak_rate` or `injection_success_rate`. These are determined by SQL and enforcement code rather than wording, so they always block. `tests/test_gates.py` locks this behavior in place.
 
-## שני מדדים שחייבים להימדד יחד
+## Metrics that must be measured together
 
-`injection_success_rate` לבדו אינו אומר דבר: מערכת שמסרבת לכל שאלה תקבל אפס ותהיה חסרת ערך. לכן `false_refusal_rate` נמדד לצידו תמיד.
+`injection_success_rate` alone is not meaningful: a system that refuses every question can score zero while being useless. Therefore `false_refusal_rate` is always measured alongside it.
 
-אותו היגיון מפריד בין `permission_leak_rate` (ערך רגיש דלף — כשל אבטחה) לבין `missed_refusal_rate` (ענה במקום לסרב, בלי לחשוף כלום — באג התנהגותי). ערבוב שלהם הופך את שני המספרים לחסרי משמעות.
+The same distinction separates `permission_leak_rate` (sensitive data was exposed - a security failure) from `missed_refusal_rate` (the system answered without exposing data - a behavioral bug). Combining them makes both numbers meaningless.
 
-## הדאטהסט
+## Dataset
 
-44 פריטים, שש קטגוריות. אמת המידה נגזרת מ-`FACTS.md` שבחבילת הקורפוס — לא מקריאה חוזרת של המסמכים, כדי שהבדיקה תהיה בלתי תלויה במה שהמערכת מחזירה.
+The dataset contains 44 items across six categories. Ground truth is derived from `FACTS.md` in the corpus package rather than by rereading documents, keeping the test independent from system output.
 
-| קטגוריה | פריטים | מה נבדק |
-|---|---|---|
-| `knowledge` | 26 | שליפה + עובדה נכונה |
-| `data` | 3 | הפעלת כלי מול הנתונים |
-| `hybrid` | 3 | נוהל + נתונים יחד |
-| `permission` | 7 | חייב לסרב, ואסור שידלוף |
-| `unanswerable` | 4 | חייב לסרב |
-| `versioning` | 1 | מסמך שפג תוקפו לא נשלף |
+| Category | Items | What is tested |
+|---|---:|---|
+| `knowledge` | 26 | Retrieval and correct facts |
+| `data` | 3 | Tool execution against data |
+| `hybrid` | 3 | Procedure and data together |
+| `permission` | 7 | Must refuse without leaking |
+| `unanswerable` | 4 | Must refuse |
+| `versioning` | 1 | Expired documents are not retrieved |
 
-`relevant_docs` ו-`relevant_sections` מזוהים ברמת מסמך וסעיף ולא לפי `chunk_id`, כדי שהדאטהסט ישרוד אינג'סט מחדש.
+`relevant_docs` and `relevant_sections` are identified at document and section level rather than by `chunk_id`, so the dataset survives re-ingestion.
 
-## הקונפיגורציות
+## Configurations
 
-| Config | היברידי | Rerank | Multi-query | ייצור |
+| Config | Hybrid | Rerank | Multi-query | Generation |
 |---|---|---|---|---|
-| `v1-vector-only` | ✗ | ✗ | ✗ | ✗ |
-| `v2-hybrid` | ✓ | ✗ | ✗ | ✗ |
-| `v3-hybrid-rerank` | ✓ | ✓ | ✗ | ✗ |
-| `v4-multiquery` | ✓ | ✓ | ✓ | ✗ |
-| `v5-full` | ✓ | ✓ | ✓ | ✓ |
+| `v1-vector-only` | No | No | No | No |
+| `v2-hybrid` | Yes | No | No | No |
+| `v3-hybrid-rerank` | Yes | Yes | No | No |
+| `v4-multiquery` | Yes | Yes | Yes | No |
+| `v5-full` | Yes | Yes | Yes | Yes |
 
-ארבע הראשונות מודדות **שליפה בלבד** — בלי מודל ייצור, ולכן זולות ודטרמיניסטיות. פריטים שמסומנים `requires_generation` מדולגים בהן, כי אין מי שיסיק.
+The first four configurations measure retrieval only, without a generation model, so they are inexpensive and deterministic. Items marked `requires_generation` are skipped because no model is available to answer them.
 
-## התוצאות
+## Results
 
-הטבלה ממולאת על ידי `make eval`. ⚠️ **אין למלא אותה משוער** — לא כאן, לא ב-README ולא בקורות החיים.
+The table is populated by `make eval`. Do not fill it with estimates, here, in the README, or on a resume.
 
 | Config | Recall@5 | MRR | CtxPrec | Correct | Refusal | Leak | p95 ms |
 |---|---|---|---|---|---|---|---|
@@ -68,10 +68,10 @@
 | v4-multiquery | | | | | | | |
 | v5-full | | | | | | | |
 
-### ניתוח (למלא אחרי ההרצה)
+### Analysis after the run
 
-- מה תרם הכי הרבה, ובכמה?
-- האם משהו הזיק? למה?
-- איפה עדיין נכשל, ומה הקטגוריה?
+- What contributed the most, and by how much?
+- Did anything hurt performance? Why?
+- Where does the system still fail, and in which category?
 
-תוצאה שלילית היא תוצאה. אם החיפוש ההיברידי לא שיפר, ההסבר הסביר הוא שהקורפוס סמנטי ולא מונחי — וזו תשובת ראיון טובה בהרבה מגרף עולה.
+A negative result is still a result. If hybrid search did not improve performance, the likely explanation is that the corpus is semantic rather than term-driven, which is a stronger interview answer than an unexplained upward graph.

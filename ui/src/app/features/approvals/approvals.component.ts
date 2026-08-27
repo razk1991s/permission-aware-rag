@@ -42,17 +42,17 @@ import { ActionStatus, AgentAction, TierPreview } from '../../core/models';
   ],
   template: `
     <div class="page">
-      <!-- ============ בקשת פעולה ============ -->
+      <!-- ============ Action request ============ -->
       <div class="card">
-        <div class="card__title">בקשת זיכוי</div>
+        <div class="card__title">Refund request</div>
 
         <div class="row">
           <div class="grow">
-            <label for="cust">שם הלקוח</label>
+            <label for="cust">Customer name</label>
             <input id="cust" [ngModel]="customer()" (ngModelChange)="customer.set($event)" />
           </div>
           <div class="grow">
-            <label for="amt">סכום (₪)</label>
+            <label for="amt">Amount (ILS)</label>
             <input
               id="amt"
               type="number"
@@ -61,15 +61,15 @@ import { ActionStatus, AgentAction, TierPreview } from '../../core/models';
             />
           </div>
           <div class="grow">
-            <label for="reason">סיבה</label>
+            <label for="reason">Reason</label>
             <input id="reason" [ngModel]="reason()" (ngModelChange)="reason.set($event)" />
           </div>
         </div>
 
         <div class="row" style="margin-top:12px">
-          <button class="ghost" (click)="preview()">מי יאשר?</button>
+          <button class="ghost" (click)="preview()">Who approves?</button>
           <button [disabled]="creating()" (click)="create()">
-            {{ creating() ? 'פותח…' : 'פתח בקשה' }}
+            {{ creating() ? 'Creating…' : 'Create request' }}
           </button>
           @if (formError(); as e) {
             <span class="error small">{{ e }}</span>
@@ -78,18 +78,18 @@ import { ActionStatus, AgentAction, TierPreview } from '../../core/models';
 
         @if (tier(); as t) {
           <div class="preview" [class.ceiling]="t.source === 'hard_ceiling'" [class.fallback]="t.source === 'fallback'">
-            נדרש אישור <b>{{ tierLabel(t.tier) }}</b> (תפקיד <code>{{ t.required_role }}</code>)
+            Approval required from <b>{{ tierLabel(t.tier) }}</b> (role <code>{{ t.required_role }}</code>)
             @if (t.auto_approved_for_you) {
-              <span class="pill pill--ok">בסמכותך — יבוצע מיד</span>
+              <span class="pill pill--ok">Within your authority - runs immediately</span>
             }
             <div class="muted" style="margin-top:6px">
               <span class="cite">{{ t.policy_citation }}</span> — {{ t.reason }}
             </div>
             <div class="small muted" style="margin-top:4px">
               @switch (t.source) {
-                @case ('document') { הסף נקרא ממסמך הנוהל, לא מקודד בקוד. }
-                @case ('hard_ceiling') { תקרה קשיחה גברה על הסף שבמסמך — השליפה יכולה רק להחמיר. }
-                @case ('fallback') { שליפת הנוהל נכשלה. הופעלו ספי ברירת מחדל שמרניים. }
+                @case ('document') { Threshold read from the procedure document, not hard-coded. }
+                @case ('hard_ceiling') { The hard ceiling overrides the document threshold. }
+                @case ('fallback') { Procedure retrieval failed; conservative fallback thresholds apply. }
                 @default { }
               }
             </div>
@@ -97,34 +97,34 @@ import { ActionStatus, AgentAction, TierPreview } from '../../core/models';
         }
       </div>
 
-      <!-- ============ רשימת בקשות ============ -->
+      <!-- ============ Request list ============ -->
       <div class="card">
         <div class="row" style="margin-bottom:10px">
-          <div class="card__title" style="margin:0">בקשות</div>
+          <div class="card__title" style="margin:0">Requests</div>
           <span class="spacer"></span>
           <select style="width:auto" [ngModel]="filter()" (ngModelChange)="setFilter($event)">
-            <option value="">הכול</option>
-            <option value="pending_approval">ממתינות</option>
-            <option value="completed">הושלמו</option>
-            <option value="rejected">נדחו</option>
-            <option value="blocked">נחסמו</option>
+            <option value="">All</option>
+            <option value="pending_approval">Pending</option>
+            <option value="completed">Completed</option>
+            <option value="rejected">Rejected</option>
+            <option value="blocked">Blocked</option>
           </select>
-          <button class="subtle" (click)="load()">רענן</button>
+          <button class="subtle" (click)="load()">Refresh</button>
         </div>
 
         @if (loading()) {
-          <div class="empty">טוען…</div>
+          <div class="empty">Loading…</div>
         } @else {
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
                   <th class="num">#</th>
-                  <th>פרטים</th>
-                  <th>סטטוס</th>
-                  <th>נדרש</th>
-                  <th>נימוק מהנוהל</th>
-                  <th>מבקש</th>
+                  <th>Details</th>
+                  <th>Status</th>
+                  <th>Required</th>
+                  <th>Procedure rationale</th>
+                  <th>Requested by</th>
                   <th></th>
                 </tr>
               </thead>
@@ -145,8 +145,8 @@ import { ActionStatus, AgentAction, TierPreview } from '../../core/models';
                     <td>
                       @if (a.status === 'pending_approval') {
                         <div class="actions-cell">
-                          <button (click)="decide(a, true)">אשר</button>
-                          <button class="ghost" (click)="decide(a, false)">דחה</button>
+                          <button (click)="decide(a, true)">Approve</button>
+                          <button class="ghost" (click)="decide(a, false)">Reject</button>
                         </div>
                       } @else if (a.approved_by_email) {
                         <span class="small muted">{{ a.approved_by_email }}</span>
@@ -155,7 +155,7 @@ import { ActionStatus, AgentAction, TierPreview } from '../../core/models';
                   </tr>
                 } @empty {
                   <tr>
-                    <td colspan="7" class="empty">אין בקשות להצגה.</td>
+                    <td colspan="7" class="empty">No requests to display.</td>
                   </tr>
                 }
               </tbody>
@@ -176,7 +176,7 @@ export class ApprovalsComponent {
 
   readonly customer = signal('');
   readonly amount = signal(4200);
-  readonly reason = signal('חיוב כפול');
+  readonly reason = signal('Duplicate charge');
 
   readonly tier = signal<TierPreview | null>(null);
   readonly actions = signal<AgentAction[]>([]);
@@ -194,7 +194,7 @@ export class ApprovalsComponent {
     this.load();
   }
 
-  /** תצוגה מקדימה מתבטלת ברגע שהסכום משתנה — אחרת היא מטעה. */
+  /** Clear the preview when the amount changes so it cannot become stale. */
   onAmount(value: number): void {
     this.amount.set(Number(value) || 0);
     this.tier.set(null);
@@ -215,7 +215,7 @@ export class ApprovalsComponent {
 
   create(): void {
     if (!this.customer().trim()) {
-      this.formError.set('חובה לציין שם לקוח');
+      this.formError.set('Customer name is required');
       return;
     }
     this.creating.set(true);
@@ -240,7 +240,7 @@ export class ApprovalsComponent {
 
   decide(action: AgentAction, approve: boolean): void {
     this.listError.set(null);
-    this.api.decide(action.id, approve, approve ? 'אושר מהממשק' : 'נדחה מהממשק').subscribe({
+    this.api.decide(action.id, approve, approve ? 'Approved in the UI' : 'Rejected in the UI').subscribe({
       next: () => this.load(),
       error: (e) => this.listError.set(this.detail(e)),
     });
@@ -270,7 +270,7 @@ export class ApprovalsComponent {
 
   tierLabel(tier: string): string {
     return (
-      { representative: 'נציג מוקד', team_lead: 'מנהל צוות', committee: 'ועדת זיכויים' }[tier] ??
+      { representative: 'Representative', team_lead: 'Team lead', committee: 'Refund committee' }[tier] ??
       tier
     );
   }
@@ -278,12 +278,12 @@ export class ApprovalsComponent {
   statusLabel(status: ActionStatus): string {
     return (
       {
-        completed: 'בוצע',
-        pending_approval: 'ממתין לאישור',
-        blocked: 'נחסם',
-        rejected: 'נדחה',
-        recommended: 'הומלץ',
-        failed: 'נכשל',
+        completed: 'Completed',
+        pending_approval: 'Pending approval',
+        blocked: 'Blocked',
+        rejected: 'Rejected',
+        recommended: 'Recommended',
+        failed: 'Failed',
       }[status] ?? status
     );
   }
@@ -296,6 +296,6 @@ export class ApprovalsComponent {
 
   private detail(err: unknown): string {
     const e = err as { error?: { detail?: string }; message?: string };
-    return e?.error?.detail ?? e?.message ?? 'שגיאה לא ידועה';
+    return e?.error?.detail ?? e?.message ?? 'Unknown error';
   }
 }

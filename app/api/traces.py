@@ -1,4 +1,4 @@
-"""‎/traces ו-/admin/metrics — תצפיתיות."""
+"""‎/traces and /admin/metrics observability endpoints."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ router = APIRouter(tags=["observability"])
 async def list_traces(
     user: UserDep, conn: ConnDep, limit: int = 50, only_refused: bool = False
 ) -> list[dict]:
-    """משתמש רואה את הטרייסים של עצמו; admin רואה הכול."""
+    """Users see their own traces; admins see all traces."""
     rows = await conn.execute(
         text(
             """
@@ -50,7 +50,7 @@ async def list_traces(
 
 @router.get("/traces/{trace_uuid}")
 async def get_trace(trace_uuid: str, user: UserDep, conn: ConnDep) -> dict:
-    """הצינור המלא של שאלה אחת — כולל ציוני כל שלב."""
+    """Return the complete pipeline for one question, including stage scores."""
     row = (
         await conn.execute(
             text(
@@ -65,7 +65,7 @@ async def get_trace(trace_uuid: str, user: UserDep, conn: ConnDep) -> dict:
         )
     ).first()
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "הטרייס לא נמצא")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Trace not found")
 
     m = dict(row._mapping)
     m["trace_uuid"] = str(m["trace_uuid"])
@@ -89,7 +89,7 @@ async def metrics(
     user: Annotated[object, Depends(require_roles("admin"))],
     days: int = 30,
 ) -> dict:
-    """אגרגציות לדשבורד. הכול בשאילתה אחת — אין לולאה על הטבלה."""
+    """Dashboard aggregates computed in one query without looping over the table."""
     row = (
         await conn.execute(
             text(

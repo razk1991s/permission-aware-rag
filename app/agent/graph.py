@@ -1,6 +1,6 @@
-"""גרף הסוכן — מכונת מצבים מפורשת עם LangGraph.
+"""Agent graph - an explicit state machine implemented with LangGraph.
 
-הזרימה:
+Flow:
 
     understand → route ─┬─ knowledge → retrieve ────────┐
                         ├─ data      → plan_tools ──────┤
@@ -11,9 +11,9 @@
                                                         ▼
                                                     generate → finalize
 
-גבולות מפורשים (settings.max_tool_calls, max_wall_clock_seconds) נאכפים
-בכל צומת שמפעיל כלי. לולאה אינה נגמרת בשקט: `stop_reason` הוא שדה חובה
-בכל טרייס, ובחריגה הוא מקבל ערך שאפשר לחפש לפיו.
+Explicit limits (settings.max_tool_calls and max_wall_clock_seconds) are
+enforced at every node that invokes a tool. Loops never end silently:
+`stop_reason` is required in every trace and receives a searchable value on overflow.
 """
 
 from __future__ import annotations
@@ -55,22 +55,22 @@ PLAN_SCHEMA = {
     "required": ["calls"],
 }
 
-PLAN_PROMPT = """בחר אילו כלים להפעיל כדי לענות על השאלה. החזר JSON בלבד.
+PLAN_PROMPT = """Choose which tools to use to answer the question. Return JSON only.
 
-הכלים הזמינים לך:
+Available tools:
 {tools}
 
-עובדות שכבר חולצו מהנהלים (השתמש בהן כפרמטרים, אל תמציא מספרים):
+Facts already extracted from procedures (use them as parameters; do not invent numbers):
 {facts}
 
-הנחיות:
-- הפעל לכל היותר {budget} כלים.
-- ל-query_database השתמש רק בשמות שאילתה מהרשימה available_queries.
-- אם חסר לך סף או מספר שאמור להגיע מנוהל — אל תנחש. השתמש ב-escalate_to_human.
+Instructions:
+- Use at most {budget} tools.
+- For query_database, use only query names from available_queries.
+- If a threshold or number from a procedure is missing, do not guess. Use escalate_to_human.
 
-השאלה: {question}"""
+Question: {question}"""
 
-# ספים שאפשר לחלץ מנוהל, והשמות שהם מקבלים ב-policy_facts
+# Thresholds extracted from procedures and their policy_facts names.
 _THRESHOLD_PATTERNS = [
     ("breach_days", re.compile(r"בתוך\s+(\d+)\s+ימי\s+עסקים")),
     ("escalation_days", re.compile(r"בתוך\s+(\d+)\s+יום\s+ממועד\s+האישור\s+תועבר")),
@@ -79,7 +79,7 @@ _THRESHOLD_PATTERNS = [
 ]
 
 
-# ------------------------------------------------------------------ צמתים
+# ------------------------------------------------------------------ Nodes
 def build_graph(conn: AsyncConnection, gateway: LLMGateway | None = None):
     gateway = gateway or get_gateway()
 
@@ -113,7 +113,7 @@ def build_graph(conn: AsyncConnection, gateway: LLMGateway | None = None):
             question=state["question"],
             domain=state.get("domain_hint"),
             gateway=gateway,
-            use_understanding=False,     # כבר בוצע בצומת understand
+            use_understanding=False,     # Already performed in the understand node.
         )
         result.understanding.queries = state.get("queries") or [state["question"]]
         return {

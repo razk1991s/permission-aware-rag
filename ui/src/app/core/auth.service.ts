@@ -8,12 +8,13 @@ import { LoginResponse, Me, Role } from './models';
 const TOKEN_KEY = 'meridian.token';
 
 /**
- * מצב הזהות של הלקוח.
+ * Client identity state.
  *
- * הערה שחשוב שתישאר כאן: ה-roles שנשמרים בצד הלקוח הם **לתצוגה בלבד** —
- * להסתרת כפתורים ולניווט. אף החלטת הרשאה לא נשענת עליהם. השרת פותר את
- * ההרשאות מחדש בכל בקשה מתוך המסד (ראה ADR 0002), ולכן משתמש שיערוך את
- * ה-localStorage ישנה רק את מה שהוא רואה, לא את מה שהוא מקבל.
+ * Important: roles stored on the client are **display-only** -
+ * They are used only to hide buttons and control navigation. Authorization
+ * decisions never rely on them; the server resolves permissions from the
+ * database on every request (see ADR 0002). Editing localStorage can change
+ * only what the user sees, never what the server returns.
  */
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -42,7 +43,7 @@ export class AuthService {
     try {
       return localStorage.getItem(TOKEN_KEY);
     } catch {
-      // דפדפן שחוסם אחסון — נמשיך בזיכרון בלבד
+      // If the browser blocks storage, continue in memory only.
       return null;
     }
   }
@@ -52,7 +53,7 @@ export class AuthService {
       if (token) localStorage.setItem(TOKEN_KEY, token);
       else localStorage.removeItem(TOKEN_KEY);
     } catch {
-      /* אחסון חסום — לא קריטי */
+      /* Storage is blocked; this is non-critical. */
     }
   }
 
@@ -68,8 +69,8 @@ export class AuthService {
       await this.refreshMe();
       return true;
     } catch {
-      // אותה הודעה לכל כשל התחברות — לא מסגירים אם המשתמש קיים
-      this._error.set('פרטי התחברות שגויים');
+      // Use the same message for every login failure to prevent account enumeration.
+      this._error.set('Invalid login credentials');
       this.logout(false);
       return false;
     } finally {

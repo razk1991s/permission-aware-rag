@@ -1,4 +1,4 @@
-"""התחברות וזהות."""
+"""Authentication and identity."""
 
 from __future__ import annotations
 
@@ -13,9 +13,9 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 class LoginRequest(BaseModel):
-    # במכוון str ולא EmailStr: התחברות שנכשלת צריכה להחזיר 401 אחיד,
-    # ולא 422 שמסגיר שהכתובת בכלל לא בפורמט תקין. חוץ מזה, EmailStr
-    # פוסל דומיינים שמורים כמו meridian.local שמשמשים בסביבת הדמו.
+    # Deliberately use str rather than EmailStr: failed login must return a
+    # uniform 401 rather than a 422 that reveals invalid email formatting.
+    # EmailStr also rejects reserved domains such as meridian.local used in demos.
     email: str = Field(min_length=3, max_length=254)
     password: str = Field(min_length=1, max_length=256)
 
@@ -51,8 +51,8 @@ LOGIN_SQL = text(
 async def login(body: LoginRequest, conn: ConnDep) -> TokenResponse:
     row = (await conn.execute(LOGIN_SQL, {"email": body.email})).first()
 
-    # אותה תשובה בדיוק למשתמש לא קיים ולסיסמה שגויה, כדי לא לאפשר
-    # מיפוי כתובות דוא"ל קיימות.
+    # Return the same response for an unknown user and a wrong password to
+    # prevent email account enumeration.
     if row is None or not row.is_active or not verify_password(body.password, row.password_hash):
         await audit(
             conn,
@@ -61,7 +61,7 @@ async def login(body: LoginRequest, conn: ConnDep) -> TokenResponse:
             outcome="blocked",
             resource=body.email,
         )
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "פרטי התחברות שגויים")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid login credentials")
 
     await audit(conn, actor_id=row.id, action="login", outcome="allowed")
     roles = list(row.roles)

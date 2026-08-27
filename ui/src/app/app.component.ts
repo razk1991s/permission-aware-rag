@@ -69,14 +69,14 @@ import { AuthService } from './core/auth.service';
   template: `
     <header>
       <div class="bar">
-        <span class="brand">Meridian<small>מוח ארגוני</small></span>
+        <span class="brand">Meridian<small>Enterprise Knowledge</small></span>
 
         @if (auth.isAuthenticated()) {
           <nav>
-            <a routerLink="/chat" routerLinkActive="active">צ׳אט</a>
-            <a routerLink="/approvals" routerLinkActive="active">אישורים</a>
-            <a routerLink="/traces" routerLinkActive="active">טרייסים</a>
-            <a routerLink="/documents" routerLinkActive="active">מסמכים</a>
+            <a routerLink="/chat" routerLinkActive="active">Chat</a>
+            <a routerLink="/approvals" routerLinkActive="active">Approvals</a>
+            <a routerLink="/traces" routerLinkActive="active">Traces</a>
+            <a routerLink="/documents" routerLinkActive="active">Documents</a>
           </nav>
 
           <span class="spacer"></span>
@@ -86,10 +86,10 @@ import { AuthService } from './core/auth.service';
               <span class="pill pill--accent">{{ role }}</span>
             }
             @if (auth.me(); as me) {
-              <span>{{ me.allowed_documents }} מסמכים מורשים</span>
+              <span>{{ me.allowed_documents }} authorized documents</span>
             }
           </span>
-          <button class="ghost" (click)="auth.logout()">התנתק</button>
+          <button class="ghost" (click)="auth.logout()">Log out</button>
         }
       </div>
     </header>
@@ -101,8 +101,7 @@ export class AppComponent {
   readonly auth = inject(AuthService);
 
   constructor() {
-    // טוקן ששרד רענון דף — נטען מחדש את פרטי המשתמש, ואם הוא פג
-    // ה-interceptor ינתק. אין כאן refresh token בכוונה.
+    // Reload the user after a page refresh; the interceptor logs out expired tokens.
     void this.auth.refreshMe();
   }
 }

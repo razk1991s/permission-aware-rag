@@ -1,7 +1,7 @@
-"""פרסור מסמכים לרצף בלוקים אחיד.
+"""Parse documents into a consistent sequence of blocks.
 
-כל פרסר מחזיר רשימת Block באותו מבנה, כדי שהחיתוך לצ'אנקים יהיה קוד אחד
-ולא ארבעה. ההבדל בין הפורמטים מתבטא רק ב-kind של הבלוקים ובמטא־דאטה.
+Every parser returns the same Block structure so chunking remains one shared
+implementation. Format differences are represented by block kind and metadata.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# ------------------------------------------------------------------ מודל
+# ------------------------------------------------------------------ Model
 Kind = str  # "heading" | "para" | "row" | "question" | "answer"
 
 
@@ -19,7 +19,7 @@ Kind = str  # "heading" | "para" | "row" | "question" | "answer"
 class Block:
     kind: Kind
     text: str
-    level: int | None = None          # לכותרות: 1–3
+    level: int | None = None          # Heading level: 1-3.
     page: int | None = None
     sheet: str | None = None
     row: int | None = None
@@ -35,11 +35,10 @@ _HEB_HEADING_NUM = re.compile(r"^\s*\d+(\.\d+)*\s")
 
 
 def parse_pdf(path: Path) -> list[Block]:
-    """זיהוי כותרות ב-PDF לפי גודל פונט ומודגשות.
+    """Detect PDF headings from font size and bold styling.
 
-    ל-PDF אין מבנה סמנטי — רק טקסט ממוקם. גודל הגופן השכיח ביותר במסמך
-    הוא גוף הטקסט; כל מה שגדול ממנו משמעותית, או מודגש ומתחיל במספר סעיף,
-    מטופל ככותרת.
+    PDFs contain positioned text rather than semantic structure. The most common
+    font size is body text; significantly larger or bold numbered text is treated as a heading.
     """
     import pymupdf
 
@@ -48,7 +47,7 @@ def parse_pdf(path: Path) -> list[Block]:
 
     for page_no, page in enumerate(doc, start=1):
         for block in page.get_text("dict")["blocks"]:
-            if block.get("type") != 0:  # 0 = טקסט
+            if block.get("type") != 0:  # 0 = text.
                 continue
             for line in block["lines"]:
                 spans = [s for s in line["spans"] if s["text"].strip()]
@@ -64,7 +63,7 @@ def parse_pdf(path: Path) -> list[Block]:
     if not raw:
         return []
 
-    # גודל גוף הטקסט = הגודל שמכסה הכי הרבה תווים, לא הכי הרבה שורות
+    # Body size is the size covering the most characters, not the most lines.
     weights: Counter[float] = Counter()
     for text_, size, _bold, _pg in raw:
         weights[size] += len(text_)
@@ -88,7 +87,7 @@ def parse_pdf(path: Path) -> list[Block]:
 
 # ------------------------------------------------------------------ DOCX
 def parse_docx(path: Path) -> list[Block]:
-    """‏Word נותן מבנה סמנטי אמיתי — סגנונות Heading. אין צורך לנחש."""
+    """Word provides real semantic structure through Heading styles."""
     import docx
     from docx.document import Document as DocxDocument
     from docx.oxml.ns import qn
@@ -99,7 +98,7 @@ def parse_docx(path: Path) -> list[Block]:
     blocks: list[Block] = []
 
     def iter_body(parent):
-        """מחזיר פסקאות וטבלאות לפי סדר הופעתן במסמך."""
+        """Yield paragraphs and tables in document order."""
         body = parent.element.body
         for child in body.iterchildren():
             if child.tag == qn("w:p"):
@@ -112,8 +111,8 @@ def parse_docx(path: Path) -> list[Block]:
             text_ = item.text.strip()
             if not text_:
                 continue
-            # שאלה ותשובה מזוהות לפני הסגנון: ב-FAQ השאלה מעוצבת ככותרת,
-            # אבל היא אינה גבול סעיף — היא חצי מיחידת מידע.
+            # Detect question and answer labels before styles: in FAQs a
+            # question may look like a heading but is half of an information unit.
             if text_.startswith("שאלה:"):
                 blocks.append(Block("question", text_.removeprefix("שאלה:").strip()))
                 continue
@@ -121,7 +120,7 @@ def parse_docx(path: Path) -> list[Block]:
                 blocks.append(Block("answer", text_.removeprefix("תשובה:").strip()))
                 continue
 
-            # פסקה יכולה להיות בלי סגנון מוגדר — אז אין לה style בכלל
+            # A paragraph may have no defined style.
             style = (getattr(item.style, "name", None) or "").lower()
             if style.startswith("heading"):
                 digits = "".join(ch for ch in style if ch.isdigit())
@@ -143,10 +142,10 @@ def parse_docx(path: Path) -> list[Block]:
 
 # ------------------------------------------------------------------ XLSX
 def parse_xlsx(path: Path) -> list[Block]:
-    """כל שורה היא יחידת מידע עצמאית, ולכן כל שורה היא בלוק.
+    """Each spreadsheet row is an independent information unit and block.
 
-    כותרות העמודות מוזרקות לתוך הטקסט של כל שורה, אחרת השורה
-    "7 | 18500 | 24300" חסרת משמעות גם לאדם וגם למודל.
+    Column headers are included in each row; otherwise values such as
+    "7 | 18500 | 24300" lack meaning to both people and models.
     """
     from openpyxl import load_workbook
 
@@ -189,7 +188,7 @@ def parse_html(path: Path) -> list[Block]:
             continue
         name = el.name
         classes = el.get("class") or []
-        # כמו ב-Word: שאלה מעוצבת ככותרת אבל אינה גבול סעיף
+        # As in Word, a question may be styled as a heading without being a section boundary.
         if "q" in classes:
             blocks.append(Block("question", text_))
         elif "a" in classes:
@@ -205,7 +204,7 @@ def parse_html(path: Path) -> list[Block]:
     return blocks
 
 
-# ------------------------------------------------------------------ נתב
+# ------------------------------------------------------------------ Dispatcher
 PARSERS = {
     ".pdf": parse_pdf,
     ".docx": parse_docx,
@@ -218,5 +217,5 @@ PARSERS = {
 def parse(path: Path) -> list[Block]:
     parser = PARSERS.get(path.suffix.lower())
     if parser is None:
-        raise UnsupportedFormat(f"אין פרסר לסיומת {path.suffix}")
+        raise UnsupportedFormat(f"No parser for extension {path.suffix}")
     return parser(path)

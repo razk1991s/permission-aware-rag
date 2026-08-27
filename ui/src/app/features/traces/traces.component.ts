@@ -13,7 +13,7 @@ import { TraceSummary } from '../../core/models';
     <div class="page">
       <div class="card">
         <div class="row" style="margin-bottom:10px">
-          <div class="card__title" style="margin:0">טרייסים אחרונים</div>
+          <div class="card__title" style="margin:0">Recent traces</div>
           <span class="spacer"></span>
           <label class="small muted" style="display:flex;gap:6px;align-items:center;margin:0">
             <input
@@ -22,24 +22,24 @@ import { TraceSummary } from '../../core/models';
               [ngModel]="onlyRefused()"
               (ngModelChange)="toggleRefused($event)"
             />
-            סירובים בלבד
+            Refusals only
           </label>
-          <button class="subtle" (click)="load()">רענן</button>
+          <button class="subtle" (click)="load()">Refresh</button>
         </div>
 
         @if (loading()) {
-          <div class="empty">טוען…</div>
+          <div class="empty">Loading…</div>
         } @else {
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>שאלה</th>
-                  <th>מסלול</th>
-                  <th>סטטוס</th>
+                  <th>Question</th>
+                  <th>Route</th>
+                  <th>Status</th>
                   <th class="num">ms</th>
-                  <th class="num">טוקנים</th>
-                  <th>מתי</th>
+                  <th class="num">Tokens</th>
+                  <th>When</th>
                   <th></th>
                 </tr>
               </thead>
@@ -53,17 +53,17 @@ import { TraceSummary } from '../../core/models';
                         {{ t.stop_reason }}
                       </span>
                       @if (t.hallucination_flag) {
-                        <span class="pill pill--bad">הזיה</span>
+                        <span class="pill pill--bad">Hallucination</span>
                       }
                     </td>
                     <td class="num">{{ t.latency_ms }}</td>
                     <td class="num">{{ t.prompt_tokens + t.completion_tokens }}</td>
                     <td class="small muted">{{ shortTime(t.created_at) }}</td>
-                    <td><a [routerLink]="['/traces', t.trace_uuid]">פתח</a></td>
+                    <td><a [routerLink]="['/traces', t.trace_uuid]">Open</a></td>
                   </tr>
                 } @empty {
                   <tr>
-                    <td colspan="7" class="empty">אין טרייסים עדיין. שאל שאלה בצ׳אט.</td>
+                    <td colspan="7" class="empty">No traces yet. Ask a question in Chat.</td>
                   </tr>
                 }
               </tbody>
@@ -104,7 +104,7 @@ export class TracesComponent {
         this.loading.set(false);
       },
       error: (err) => {
-        this.error.set(err?.error?.detail ?? 'שגיאה בטעינת הטרייסים');
+        this.error.set(err?.error?.detail ?? 'Failed to load traces');
         this.loading.set(false);
       },
     });

@@ -5,11 +5,10 @@ import { ApiService } from '../../core/api.service';
 import { RetrievedChunk, TraceDetail } from '../../core/models';
 
 /**
- * צופה הטרייס — המסך שמראה שהמערכת אינה קופסה שחורה.
+ * Trace viewer - the screen that shows the system is not a black box.
  *
- * העמודה שהכי שווה להסתכל עליה היא Δ: כמה מקומות הרירנקר הזיז כל קטע.
- * זו הוכחה חזותית שהרכיב עושה משהו, ובראיון היא שווה יותר מהסבר על
- * ההבדל בין bi-encoder ל-cross-encoder.
+ * The most useful column is delta: how many positions the reranker moved each
+ * chunk. It is direct evidence that the component is doing meaningful work.
  */
 @Component({
   selector: 'app-trace-detail',
@@ -60,10 +59,10 @@ import { RetrievedChunk, TraceDetail } from '../../core/models';
   ],
   template: `
     <div class="page">
-      <a routerLink="/traces" class="small">← חזרה לרשימה</a>
+      <a routerLink="/traces" class="small"><- Back to list</a>
 
       @if (loading()) {
-        <div class="empty">טוען…</div>
+        <div class="empty">Loading…</div>
       } @else if (error()) {
         <div class="card"><p class="error">{{ error() }}</p></div>
       }
@@ -75,9 +74,9 @@ import { RetrievedChunk, TraceDetail } from '../../core/models';
             <span class="pill pill--accent">{{ t.route ?? '—' }}</span>
             <span class="pill" [class]="t.refused ? 'pill--warn' : 'pill--ok'">{{ t.stop_reason }}</span>
             <span class="pill pill--muted">{{ t.latency_ms }} ms</span>
-            <span class="pill pill--muted">{{ t.prompt_tokens + t.completion_tokens }} טוקנים</span>
+            <span class="pill pill--muted">{{ t.prompt_tokens + t.completion_tokens }} tokens</span>
             @if (t.groundedness !== null) {
-              <span class="pill pill--muted">ביסוס {{ t.groundedness }}</span>
+              <span class="pill pill--muted">Groundedness {{ t.groundedness }}</span>
             }
             @if (t.user_email) {
               <span class="pill pill--muted">{{ t.user_email }}</span>
@@ -86,7 +85,7 @@ import { RetrievedChunk, TraceDetail } from '../../core/models';
 
           @if (t.rewritten_queries?.length) {
             <div class="small muted" style="margin-top:10px">
-              ניסוחים שנוצרו:
+              Generated responses:
               @for (q of t.rewritten_queries; track q) {
                 <span class="pill pill--muted">{{ q }}</span>
               }
@@ -94,9 +93,9 @@ import { RetrievedChunk, TraceDetail } from '../../core/models';
           }
         </div>
 
-        <!-- ============ זמני שלבים ============ -->
+        <!-- ============ Stage timings ============ -->
         <div class="card">
-          <div class="card__title">זמן לפי שלב</div>
+          <div class="card__title">Stage timings</div>
           @for (s of stages(); track s.name) {
             <div class="stage">
               <span class="name">{{ s.name }}</span>
@@ -104,23 +103,23 @@ import { RetrievedChunk, TraceDetail } from '../../core/models';
               <span>{{ s.ms }} ms</span>
             </div>
           } @empty {
-            <div class="empty small">אין נתוני שלבים.</div>
+            <div class="empty small">No stage data.</div>
           }
         </div>
 
-        <!-- ============ מועמדים ============ -->
+        <!-- ============ Candidates ============ -->
         <div class="card">
           <div class="card__title">
-            מועמדים וציונים
-            <span class="small muted">— Δ הוא כמה מקומות הרירנקר הזיז את הקטע</span>
+            Candidates and scores
+            <span class="small muted">- delta is how many positions the reranker moved the chunk</span>
           </div>
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
                   <th class="num">#</th>
-                  <th>מקור</th>
-                  <th class="num">וקטור</th>
+                  <th>Source</th>
+                  <th class="num">Vector</th>
                   <th class="num">BM25</th>
                   <th class="num">RRF</th>
                   <th class="num">rerank</th>
@@ -141,21 +140,21 @@ import { RetrievedChunk, TraceDetail } from '../../core/models';
                     </td>
                   </tr>
                 } @empty {
-                  <tr><td colspan="7" class="empty">לא נשלפו מועמדים.</td></tr>
+                  <tr><td colspan="7" class="empty">No candidates retrieved.</td></tr>
                 }
               </tbody>
             </table>
           </div>
         </div>
 
-        <!-- ============ כלים ============ -->
+        <!-- ============ Tools ============ -->
         @if (t.tools_called?.length) {
           <div class="card">
-            <div class="card__title">כלים שהופעלו</div>
+            <div class="card__title">Tools invoked</div>
             <div class="table-wrap">
               <table>
                 <thead>
-                  <tr><th>כלי</th><th>סטטוס</th><th>הודעה</th><th class="num">ms</th></tr>
+                  <tr><th>Tool</th><th>Status</th><th>Message</th><th class="num">ms</th></tr>
                 </thead>
                 <tbody>
                   @for (tool of t.tools_called; track $index) {
@@ -176,9 +175,9 @@ import { RetrievedChunk, TraceDetail } from '../../core/models';
           </div>
         }
 
-        <!-- ============ תשובה ============ -->
+        <!-- ============ Answer ============ -->
         <div class="card">
-          <div class="card__title">התשובה</div>
+          <div class="card__title">Answer</div>
           <div class="answer">{{ t.answer ?? '—' }}</div>
           @if (t.error) {
             <p class="error small" style="margin-top:10px">{{ t.error }}</p>
@@ -191,7 +190,7 @@ import { RetrievedChunk, TraceDetail } from '../../core/models';
 export class TraceDetailComponent {
   private readonly api = inject(ApiService);
 
-  /** מגיע מפרמטר הנתיב דרך withComponentInputBinding() */
+  /** Comes from the route parameter through withComponentInputBinding(). */
   readonly id = input.required<string>();
 
   readonly trace = signal<TraceDetail | null>(null);
@@ -212,7 +211,7 @@ export class TraceDetailComponent {
   });
 
   constructor() {
-    // input() זמין כבר בבנאי כשהניתוב מזין אותו
+    // input() is available in the constructor after routing supplies it.
     queueMicrotask(() => this.load());
   }
 
@@ -223,7 +222,7 @@ export class TraceDetailComponent {
         this.loading.set(false);
       },
       error: (err) => {
-        this.error.set(err?.error?.detail ?? 'הטרייס לא נמצא');
+        this.error.set(err?.error?.detail ?? 'Trace not found');
         this.loading.set(false);
       },
     });

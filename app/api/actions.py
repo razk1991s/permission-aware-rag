@@ -1,4 +1,4 @@
-"""‎/actions — בקשות פעולה ושערי אישור."""
+"""‎/actions - action requests and approval gates."""
 
 from __future__ import annotations
 
@@ -46,9 +46,10 @@ async def action_specs(user: UserDep) -> list[dict]:
 
 @router.get("/preview")
 async def preview_tier(amount: float, user: UserDep, conn: ConnDep) -> dict:
-    """מי יידרש לאשר סכום נתון — בלי ליצור בקשה.
+    """Return who must approve an amount without creating a request.
 
-    שימושי גם לדמו וגם לבדיקות: מראה שהסף מגיע מהמסמך ולא מהקוד.
+    Useful for demos and tests: demonstrates that the threshold comes from
+    the procedure document rather than application code.
     """
     tier = await resolve_approval_tier(conn, user_id=user.id, amount=amount)
     return {

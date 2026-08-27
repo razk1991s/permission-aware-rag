@@ -1,4 +1,4 @@
-"""בדיקות יחידה לסוכן: קטלוג השאילתות, חישוב בטוח, וקביעת דרג אישור."""
+"""Agent unit tests: query catalog, safe evaluation, and approval tier resolution."""
 
 from __future__ import annotations
 
@@ -18,14 +18,14 @@ from app.agent.query_catalog import (
 from app.agent.tools import _safe_eval
 
 
-# ------------------------------------------------------- קטלוג שאילתות
+# ------------------------------------------------------- Query catalog
 def test_unknown_query_name_is_rejected():
     with pytest.raises(QueryNotFound):
         get_spec("drop_everything")
 
 
 def test_unknown_parameter_is_rejected_not_ignored():
-    """פרמטר שלא בסכמה נדחה. התעלמות שקטה היא איך הזרקות מצליחות."""
+    """Reject parameters outside the schema; silent ignoring enables injection."""
     spec = get_spec("open_refunds_older_than")
     with pytest.raises(InvalidQueryParams):
         validate_params(spec, {"days": 14, "bypass_acl": True})
@@ -55,7 +55,7 @@ def test_missing_required_param_is_rejected():
 
 
 def test_no_catalog_sql_is_interpolated():
-    """אסור ש-SQL בקטלוג ייבנה במחרוזת. הכול חייב להיות פרמטרים קשורים."""
+    """Catalog SQL must not use string interpolation; all values must be bound."""
     for spec in CATALOG.values():
         assert "%s" not in spec.sql
         assert "format(" not in spec.sql
@@ -67,11 +67,11 @@ def test_catalog_for_prompt_hides_unauthorized_queries():
     finance = {q["name"] for q in catalog_for_prompt({"finance"})}
     employee = {q["name"] for q in catalog_for_prompt({"employee"})}
     assert "transactions_summary" in finance
-    assert "transactions_summary" not in support   # finance/admin בלבד
+    assert "transactions_summary" not in support   # finance/admin only
     assert employee == set()
 
 
-# ------------------------------------------------------------ חישוב בטוח
+# ------------------------------------------------------------ Safe evaluation
 def test_calculator_evaluates_arithmetic():
     assert _safe_eval(ast.parse("4200 * 0.028", mode="eval")) == pytest.approx(117.6)
 
@@ -91,7 +91,7 @@ def test_calculator_rejects_huge_exponent():
         _safe_eval(ast.parse("9**99999", mode="eval"))
 
 
-# ------------------------------------------------------------ דרגי אישור
+# ------------------------------------------------------------ Approval tiers
 POLICY = (
     "5. סמכויות אישור\n"
     "5.1 נציג מוקד\n"
@@ -104,7 +104,7 @@ POLICY = (
 
 
 def test_tiers_are_parsed_per_sentence_not_per_chunk():
-    """הבאג שהיה: הצ'אנק מכיל את 5.1 ו-5.2 יחד, והסכום הגדול שויך לנציג."""
+    """A chunk containing 5.1 and 5.2 must not assign the larger amount to the representative."""
     tiers = parse_tiers_from_text([(POLICY, "5. סמכויות אישור", "FIN-001")])
     by_name = {t.name: t for t in tiers}
     assert by_name["representative"].max_amount == 2500
@@ -119,14 +119,14 @@ def test_tier_citation_points_at_the_right_subsection():
 
 
 def test_other_documents_do_not_contaminate_tiers():
-    """נוהל האשראי מזכיר 75,000 ש\"ח למנהל צוות — ואסור שייכנס לספי הזיכוי."""
+    """A credit procedure must not contaminate refund thresholds with its 75,000 ILS limit."""
     credit = "3.2 מנהל צוות אשראי מוסמך לאשר מסגרת בסכום של 20,001 עד 75,000 ש\"ח."
     tiers = parse_tiers_from_text([(POLICY, "5", "FIN-001"), (credit, "3.2", "FIN-005")])
     assert {t.name: t.max_amount for t in tiers}["team_lead"] == 15000
 
 
 def test_conflicting_ceilings_resolve_to_the_stricter_one():
-    """שגיאת חילוץ חייבת להוביל להחמרה, לא להקלה."""
+    """Extraction errors must make the decision stricter, not weaker."""
     a = "5.1 נציג מוקד מוסמך לאשר עד 2,500 ש\"ח."
     b = "5.1 נציג מוקד מוסמך לאשר עד 9,000 ש\"ח."
     tiers = {t.name: t for t in parse_tiers_from_text([(a, "5.1", "FIN-001"), (b, "5.1", "FIN-001")])}

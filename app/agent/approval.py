@@ -1,12 +1,13 @@
-"""קביעת דרג האישור מתוך מסמך הנוהל.
+"""Resolve approval tiers from a procedure document.
 
-ADR 0006: ספי האישור אינם מקודדים. הסוכן שולף את סעיף הסמכויות מנוהל
-הזיכויים ומחלץ ממנו את הספים, ושומר את הציטוט שהוביל להחלטה. כשמחלקת
-הכספים תשנה את הסף בנוהל — המערכת תשתנה איתו.
+ADR 0006: approval thresholds are not hard-coded. The agent retrieves the
+authorization section from the refund procedure, extracts its thresholds, and
+stores the citation that led to the decision. When Finance changes the procedure,
+the system changes with it.
 
-הסתייגות שמטופלת כאן במפורש: זה הופך בקרה ארגונית לתלויה באיכות
-השליפה. לכן קיימת תקרה קשיחה — מעל approval_hard_ceiling תמיד נדרש
-אישור ועדה, בלי קשר למה שנשלף. **השליפה יכולה רק להחמיר, לא להקל.**
+This makes organizational control dependent on retrieval quality, so the hard
+ceiling is enforced explicitly: amounts above approval_hard_ceiling always
+require committee approval. **Retrieval can only make the decision stricter.**
 """
 
 from __future__ import annotations
@@ -27,18 +28,18 @@ log = logging.getLogger(__name__)
 class ApprovalTier:
     name: str
     role: str
-    max_amount: float | None      # None = ללא תקרה
+    max_amount: float | None      # None = no ceiling
     citation: str
     reason: str
     source: str                   # "document" | "fallback"
 
 
-# ברירת מחדל שמרנית, לשימוש רק אם השליפה נכשלה. הסכומים כאן נמוכים
-# מהמופיע בנוהל בכוונה: כשל בשליפה חייב להוביל להחמרה, לא להקלה.
+# Conservative fallback, used only when retrieval fails. The lower amounts are
+# intentional: retrieval failure must make the decision stricter.
 FALLBACK_TIERS = (
-    ApprovalTier("representative", "support", 1_000.0, "ברירת מחדל", "שליפת הנוהל נכשלה", "fallback"),
-    ApprovalTier("team_lead", "finance", 10_000.0, "ברירת מחדל", "שליפת הנוהל נכשלה", "fallback"),
-    ApprovalTier("committee", "admin", None, "ברירת מחדל", "שליפת הנוהל נכשלה", "fallback"),
+    ApprovalTier("representative", "support", 1_000.0, "Fallback", "Procedure retrieval failed", "fallback"),
+    ApprovalTier("team_lead", "finance", 10_000.0, "Fallback", "Procedure retrieval failed", "fallback"),
+    ApprovalTier("committee", "admin", None, "Fallback", "Procedure retrieval failed", "fallback"),
 )
 
 _AMOUNT = re.compile(r"(\d{1,3}(?:,\d{3})+|\d+)\s*(?:ש\"ח|₪|שקל)")
@@ -51,11 +52,10 @@ def _to_float(raw: str) -> float:
 
 
 def _sentences(text_: str) -> list[str]:
-    """פיצול לשורות ולמשפטים.
+    """Split text into lines and sentences.
 
-    זה לא קישוט: צ'אנק אחד מכיל את כל סעיף 5 — גם 5.1 וגם 5.2 וגם 5.3.
-    ניתוח ברמת הצ'אנק ייקח את הסכום הגדול ביותר וישייך אותו לדרג הראשון
-    שזוהה, ויקבע שנציג מוקד מוסמך לאשר 15,000 ש"ח. זה בדיוק הבאג שהיה כאן.
+    This is essential because one chunk can contain sections 5.1, 5.2, and 5.3.
+    Chunk-level analysis would assign the largest amount to the first tier found.
     """
     parts: list[str] = []
     for line in text_.splitlines():
@@ -64,25 +64,25 @@ def _sentences(text_: str) -> list[str]:
 
 
 def parse_tiers_from_text(chunks: list[tuple[str, str, str]]) -> list[ApprovalTier]:
-    """מחלץ ספי אישור מקטעי הנוהל.
+    """Extract approval thresholds from procedure chunks.
 
-    כל קטע הוא (טקסט, ציטוט, doc_id). הניתוח הוא ברמת משפט, וכל משפט
-    חייב להכיל גם מילת מפתח של דרג וגם סכום — אחרת הוא נדחה. הסכום
-    הגדול ביותר במשפט הוא התקרה, כי הניסוח הוא "בסכום של 2,501 עד 15,000".
+    Each chunk is (text, citation, doc_id). Analysis is sentence-level; every
+    sentence must contain both a tier keyword and an amount. The largest amount
+    in a sentence is its ceiling because procedures use ranges.
     """
     found: list[ApprovalTier] = []
 
     for content, citation, doc_id in chunks:
-        # רק המסמך שמגדיר את הסמכויות. בלי זה, נוהל האשראי (75,000 ש"ח)
-        # נשלף יחד עם נוהל הזיכויים ומזהם את הספים.
+        # Only the document defining authorization rules is relevant. Otherwise,
+        # the credit procedure can contaminate refund thresholds.
         if doc_id != settings.approval_policy_doc:
             continue
 
         current_section: str | None = None
         for sentence in _sentences(content):
-            # כותרת סעיף מעדכנת את ההקשר. הסכום עצמו מופיע במשפט הבא,
-            # ובלי מעקב הציטוט היה מצביע על הסעיף הקודם — והמאשר קורא
-            # את הציטוט הזה כדי לאמת את ההחלטה.
+            # A section heading updates context. The amount may appear in the
+            # next sentence, so citation tracking must not point to the prior section.
+            # Store this citation so the decision can be verified.
             heading = _SECTION_HEADING.match(sentence)
             if heading:
                 current_section = heading.group(1)
@@ -112,8 +112,8 @@ def parse_tiers_from_text(chunks: list[tuple[str, str, str]]) -> list[ApprovalTi
                 found.append(ApprovalTier("committee", "admin", None, cite,
                                           "מעל הסכום המרבי נדרשת ועדה", "document"))
 
-    # דה־דופליקציה לפי דרג — התקרה הנמוכה ביותר שנמצאה, כי שגיאת חילוץ
-    # צריכה להוביל להחמרה ולא להקלה.
+    # Deduplicate by tier and keep the lowest ceiling: extraction errors must
+    # make the decision stricter rather than weaker.
     by_name: dict[str, ApprovalTier] = {}
     for tier in found:
         current = by_name.get(tier.name)
@@ -129,7 +129,7 @@ def parse_tiers_from_text(chunks: list[tuple[str, str, str]]) -> list[ApprovalTi
 async def resolve_approval_tier(
     conn: AsyncConnection, *, user_id: int, amount: float, action_type: str = "create_refund"
 ) -> ApprovalTier:
-    """מחזיר את דרג האישור הנדרש לסכום נתון."""
+    """Return the approval tier required for an amount."""
     tiers: list[ApprovalTier] = []
     try:
         result = await retrieve(

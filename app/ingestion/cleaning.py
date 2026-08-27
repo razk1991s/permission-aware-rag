@@ -1,21 +1,21 @@
-"""ניקוי טקסט — עם דגש על מה שקורה לעברית ב-PDF.
+"""Text cleaning, with special handling for Hebrew PDF extraction.
 
-חילוץ טקסט עברי מ-PDF מחזיר טקסט קריא, אבל עם שני ארטיפקטים קבועים
-שנובעים מאלגוריתם ה-bidi ולא מבאג:
+Hebrew PDF extraction returns readable text but includes two recurring bidi
+artifacts rather than software bugs:
 
-1. סימן פיסוק סופי נודד לתחילת השורה:  ".השירות או ללקוחות"
-2. כל שורה ויזואלית היא בלוק נפרד, ולכן משפט אחד מפוצל לכמה בלוקים.
+1. Final punctuation moves to the start of a line.
+2. Each visual line becomes a separate block, splitting one sentence into many blocks.
 
-בלי תיקון, הצ'אנקים נחתכים באמצע משפט — וזה פוגע גם בהטמעות וגם ב-BM25.
+Without correction, chunks split sentences, harming both embeddings and BM25.
 """
 
 from __future__ import annotations
 
 import re
 
-# סימני פיסוק שנודדים לתחילת שורה בטקסט RTL
+# Punctuation that moves to the start of RTL lines.
 _LEADING_PUNCT = re.compile(r"^\s*([.,;:!?…])\s*")
-# סוף משפט אמיתי: פיסוק סופי, נקודתיים, או סוגר
+# Sentence endings: terminal punctuation, a colon, or a closing bracket.
 _SENTENCE_END = re.compile(r"[.!?:;׃]\s*$|[)\]]\s*$")
 _CONTROL = re.compile(r"[‎‏‪-‮⁦-⁩]")  # סימני bidi בלתי נראים
 _WS = re.compile(r"[ \t ]+")

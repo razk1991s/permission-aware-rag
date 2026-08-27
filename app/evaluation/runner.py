@@ -1,8 +1,8 @@
-"""מריץ את חבילת ההערכה על קונפיגורציה נתונה ושומר את התוצאה.
+"""Run the evaluation suite for a configuration and save the result.
 
-השוואת קונפיגורציות היא כל העניין: אותו dataset, אותם משתמשים, ורק
-רכיב אחד משתנה בכל פעם. זה מה שמאפשר לומר "הרירנקר הוסיף X נקודות"
-במקום "המערכת עובדת טוב".
+Configuration comparison is the point: the same dataset and users are used
+while one component changes at a time. This supports measurable claims about
+improvements instead of vague statements that the system works well.
 """
 
 from __future__ import annotations
@@ -48,29 +48,29 @@ ROLE_EMAILS = {
 
 @dataclass
 class EvalConfig:
-    """קונפיגורציה אחת להשוואה. ראה CONFIGS למטה."""
+    """One configuration to compare; see CONFIGS below."""
 
     name: str
     hybrid: bool = True
     rerank: bool = True
     understanding: bool = True
-    retrieval_only: bool = False        # לא מפעיל מודל ייצור — זול ודטרמיניסטי
+    retrieval_only: bool = False        # No generation model; inexpensive and deterministic.
     description: str = ""
 
 
 CONFIGS: dict[str, EvalConfig] = {
     "v1-vector-only": EvalConfig("v1-vector-only", hybrid=False, rerank=False,
                                  understanding=False, retrieval_only=True,
-                                 description="בסיס: חיפוש וקטורי בלבד"),
+                                 description="Baseline: vector search only"),
     "v2-hybrid": EvalConfig("v2-hybrid", hybrid=True, rerank=False, understanding=False,
-                            retrieval_only=True, description="+ חיפוש לקסיקלי ומיזוג RRF"),
+                            retrieval_only=True, description="+ lexical search and RRF fusion"),
     "v3-hybrid-rerank": EvalConfig("v3-hybrid-rerank", hybrid=True, rerank=True,
                                    understanding=False, retrieval_only=True,
-                                   description="+ דירוג מחדש עם cross-encoder"),
+                                   description="+ cross-encoder reranking"),
     "v4-multiquery": EvalConfig("v4-multiquery", hybrid=True, rerank=True, understanding=True,
-                                retrieval_only=True, description="+ הרחבת ניסוחים"),
+                                retrieval_only=True, description="+ query expansion"),
     "v5-full": EvalConfig("v5-full", hybrid=True, rerank=True, understanding=True,
-                          retrieval_only=False, description="המערכת המלאה, כולל ייצור וולידציה"),
+                          retrieval_only=False, description="Full system with generation and validation"),
 }
 
 
@@ -87,8 +87,8 @@ class EvalItem:
     expected_refusal: bool = False
     expects_tool: str | None = None
     forbidden_docs: list[str] = field(default_factory=list)
-    # פריטים שדורשים הסקה של המודל. בקונפיגורציית שליפה־בלבד אין מי
-    # שיסיק, ולכן הרצתם שם מודדת רעש ולא איכות.
+    # Items requiring model inference. Retrieval-only configurations have no
+    # inference step, so running these would measure noise rather than quality.
     requires_generation: bool = False
     note: str | None = None
 
@@ -132,7 +132,7 @@ async def _user_for_role(conn: AsyncConnection, role: str) -> tuple[int, set[str
         )
     ).first()
     if row is None:
-        raise RuntimeError(f"משתמש הדמו {email} לא נמצא — הרץ את seed_auth.sql")
+        raise RuntimeError(f"Demo user {email} not found - run seed_auth.sql")
     allowed = await resolve_allowed_doc_ids(conn, row.id)
     return row.id, set(row.roles), set(allowed)
 
@@ -164,7 +164,7 @@ async def run_config(
         notes: list[str] = []
         started = time.perf_counter()
 
-        # ---------- שכבת השליפה ----------
+        # ---------- Retrieval layer ----------
         result = await retrieve(
             conn,
             user_id=user_id,
@@ -184,10 +184,10 @@ async def run_config(
             scores["mrr"] = mrr(retrieved_ids, relevant_ids)
             scores["context_precision"] = context_precision(retrieved_ids, relevant_ids, k=5)
 
-        # ---------- שכבת התשובה ----------
+        # ---------- Answer layer ----------
         if config.retrieval_only:
-            # במצב שליפה בלבד אין מודל ייצור. מסמנים סירוב לפי הסף, כדי
-            # שקטגוריית ההרשאות עדיין תיבדק — היא לא תלויה במודל.
+            # Retrieval-only mode has no generation model. Mark refusal by the
+            # threshold so authorization items can still be evaluated.
             refused = result.below_threshold or not ranked
             answer_text = " ".join(c.content for c in ranked[:3])
             cited_ids: list[int] = []
@@ -211,7 +211,7 @@ async def run_config(
                 scores["groundedness"] = float(final["groundedness"])
             scores["hallucination"] = 1.0 if final.get("hallucination_flag") else 0.0
 
-        # מסמך שאסור היה להישלף כלל — למשל גרסה שפג תוקפה
+        # A document that should never have been retrieved, such as an expired version.
         forbidden_docs_hit = sorted(
             {c.doc_id for c in ranked if c.doc_id in item.forbidden_docs}
         )
@@ -221,40 +221,40 @@ async def run_config(
         if cited_ids:
             scores["citation_accuracy"] = citation_accuracy(cited_ids, served_ids)
 
-        # ---------- קביעת מעבר/כישלון ----------
+        # ---------- Pass/fail decision ----------
         passed = True
         leaked = False
 
         if forbidden_docs_hit:
             passed = False
             leaked = True
-            notes.append(f"נשלף מסמך אסור: {forbidden_docs_hit}")
+            notes.append(f"Forbidden document retrieved: {forbidden_docs_hit}")
 
         if item.expected_refusal:
-            # קטגוריית ההרשאות: לא מספיק לסרב — אסור שהערך הרגיש ידלוף
+            # Authorization cases must refuse without leaking sensitive values.
             if not refused:
                 passed = False
-                notes.append("היה צריך לסרב")
+                notes.append("The system should have refused")
             hits = [f for f in item.forbidden_any if f.replace(",", "") in answer_text.replace(",", "")]
             if hits:
                 passed = False
                 leaked = True
-                notes.append(f"דליפת ערך אסור: {hits}")
+                notes.append(f"Forbidden value leaked: {hits}")
         else:
             if refused:
                 passed = False
-                notes.append("סירוב שגוי")
+                notes.append("Incorrect refusal")
             elif item.expected_any:
                 correct = answer_contains(answer_text, item.expected_any)
                 scores["answer_correctness"] = correct
                 if not correct:
                     passed = False
-                    notes.append(f"לא נמצא אף אחד מ-{item.expected_any}")
+                    notes.append(f"None of {item.expected_any} found")
             forbidden = [f for f in item.forbidden_any if f.replace(",", "") in answer_text.replace(",", "")]
             if forbidden:
                 passed = False
                 leaked = True
-                notes.append(f"הופיע ערך אסור: {forbidden}")
+                notes.append(f"Forbidden value appeared: {forbidden}")
             if (
                 item.expects_tool
                 and not config.retrieval_only
@@ -263,7 +263,7 @@ async def run_config(
                 )
             ):
                 passed = False
-                notes.append(f"הכלי {item.expects_tool} לא הופעל בהצלחה")
+                notes.append(f"Tool {item.expects_tool} did not run successfully")
 
         metrics.add(
             ItemScore(item.id, item.category, passed, scores, "; ".join(notes) or None, leaked)

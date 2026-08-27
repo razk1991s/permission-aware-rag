@@ -1,6 +1,6 @@
 /* ============================================================
-   מערכת עיצוב — טוקנים, ערכות בהיר/כהה, ורכיבי בסיס.
-   RTL הוא ברירת המחדל: dir="rtl" מוגדר ב-index.html.
+  Design system: tokens, light/dark themes, and base components.
+  RTL is the default: dir="rtl" is configured in index.html.
    ============================================================ */
 
 :root {
@@ -72,14 +72,14 @@ h3 { font-size: 0.98rem; font-weight: 600; }
 p { margin: 0 0 0.75rem; }
 a { color: var(--accent); text-underline-offset: 3px; }
 
-/* ---------------------------------------------------- פריסה */
+/* ---------------------------------------------------- Layout */
 .page { max-width: 1040px; margin: 0 auto; padding: 22px 18px 60px; }
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .row > .grow { flex: 1 1 220px; }
 .stack { display: flex; flex-direction: column; gap: 14px; }
 .spacer { flex: 1; }
 
-/* ---------------------------------------------------- כרטיס */
+/* ---------------------------------------------------- Card */
 .card {
   background: var(--card);
   border: 1px solid var(--line);
@@ -90,7 +90,7 @@ a { color: var(--accent); text-underline-offset: 3px; }
 .card + .card { margin-top: 14px; }
 .card__title { font-weight: 600; margin-bottom: 10px; }
 
-/* ---------------------------------------------------- טפסים */
+/* ---------------------------------------------------- Forms */
 input, select, textarea {
   font: inherit;
   color: var(--ink);
@@ -120,7 +120,7 @@ button.ghost { background: none; color: var(--accent); border: 1px solid var(--l
 button.subtle { background: var(--card-2); color: var(--ink); }
 button:disabled { opacity: 0.5; cursor: default; }
 
-/* ---------------------------------------------------- תוויות */
+/* ---------------------------------------------------- Labels */
 .pill {
   display: inline-block;
   font-family: var(--mono);
@@ -136,7 +136,7 @@ button:disabled { opacity: 0.5; cursor: default; }
 .pill--accent { color: var(--accent); border-color: var(--accent-line); background: var(--accent-soft); }
 .pill--muted { color: var(--muted); border-color: var(--line); }
 
-/* ---------------------------------------------------- טבלאות */
+/* ---------------------------------------------------- Tables */
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 th, td { text-align: right; padding: 9px 11px; border-bottom: 1px solid var(--line); vertical-align: top; }
@@ -144,7 +144,7 @@ th { color: var(--muted); font-weight: 600; font-size: 0.78rem; white-space: now
 tbody tr:last-child td { border-bottom: 0; }
 td.num, th.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
-/* ---------------------------------------------------- טקסט */
+/* ---------------------------------------------------- Text */
 .muted { color: var(--muted); }
 .small { font-size: 0.84rem; }
 .mono { font-family: var(--mono); }
@@ -173,7 +173,7 @@ pre {
 .empty { color: var(--muted); padding: 18px 0; text-align: center; }
 .error { color: var(--bad); }
 
-/* ---------------------------------------------------- אנימציה */
+/* ---------------------------------------------------- Animation */
 @media (prefers-reduced-motion: no-preference) {
   .fade-in { animation: fade 0.18s ease-out; }
 }

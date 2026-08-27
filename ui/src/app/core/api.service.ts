@@ -15,15 +15,15 @@ import {
 } from './models';
 
 /**
- * שכבת גישה אחת ל-API. כל קריאת רשת באפליקציה עוברת דרך כאן, כדי
- * שהוספת header, טיפול בשגיאות או שינוי base-url ייעשו במקום אחד.
+ * Single API access layer. Every network request passes through here so
+ * headers, error handling, and base URL changes stay centralized.
  */
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private readonly http = inject(HttpClient);
   private readonly base = '/api';
 
-  // ---------------------------------------------------------- צ'אט
+  // ---------------------------------------------------------- Chat
   chat(question: string, sessionId?: string): Observable<ChatResponse> {
     return this.http.post<ChatResponse>(`${this.base}/chat`, {
       question,
@@ -40,7 +40,7 @@ export class ApiService {
     });
   }
 
-  // ---------------------------------------------------------- מסמכים
+  // ---------------------------------------------------------- Documents
   documents(domain?: string, includeSuperseded = false): Observable<DocumentSummary[]> {
     let params = new HttpParams().set('include_superseded', includeSuperseded);
     if (domain) params = params.set('domain', domain);
@@ -51,7 +51,7 @@ export class ApiService {
     return this.http.get<ChunkView[]>(`${this.base}/documents/${encodeURIComponent(docId)}/chunks`);
   }
 
-  // ---------------------------------------------------------- פעולות
+  // ---------------------------------------------------------- Actions
   previewTier(amount: number): Observable<TierPreview> {
     return this.http.get<TierPreview>(`${this.base}/actions/preview`, {
       params: new HttpParams().set('amount', amount),
@@ -78,7 +78,7 @@ export class ApiService {
     });
   }
 
-  // ---------------------------------------------------------- טרייסים
+  // ---------------------------------------------------------- Traces
   traces(limit = 50, onlyRefused = false): Observable<TraceSummary[]> {
     return this.http.get<TraceSummary[]>(`${this.base}/traces`, {
       params: new HttpParams().set('limit', limit).set('only_refused', onlyRefused),

@@ -1,4 +1,4 @@
-"""גיבוב סיסמאות והנפקת טוקנים."""
+"""Password hashing and token issuance."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ def verify_password(plain: str, hashed: str) -> bool:
     try:
         return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
     except (ValueError, TypeError):
-        # hash פגום או בפורמט אחר — נכשל סגור, בלי לחשוף את הסיבה למשתמש.
+        # A malformed or incompatible hash fails closed without exposing the reason.
         return False
 
 
@@ -37,5 +37,5 @@ def create_access_token(*, user_id: int, email: str, roles: list[str]) -> str:
 
 
 def decode_access_token(token: str) -> dict:
-    """מפענח ומאמת. זורק jwt.PyJWTError בכל כשל — כולל פקיעה."""
+    """Decode and validate a token, raising jwt.PyJWTError on every failure."""
     return jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])

@@ -1,8 +1,8 @@
-"""מצב הסוכן — מה עובר בין הצמתים בגרף.
+"""Agent state passed between graph nodes.
 
-הפרדה חשובה: השדות שמתחת לקו הם **מצב אפליקציה** ולא הקשר מודל. הם
-לעולם לא נכנסים לפרומפט. זו גם החלטה הנדסית נכונה וגם שכבת אבטחה:
-מה שלא נמצא בהקשר, מסמך מורעל לא יכול לנסות לשנות.
+Important distinction: the fields below are **application state**, not model
+context. They never enter the prompt. This is both sound engineering and a
+security layer: a poisoned document cannot change what is outside its context.
 """
 
 from __future__ import annotations
@@ -15,29 +15,29 @@ def _append(existing: list | None, new: list | None) -> list:
 
 
 class AgentState(TypedDict, total=False):
-    # --- קלט ---
+    # --- Input ---
     question: str
     session_id: str | None
     thread_id: str
 
-    # --- זהות והרשאות (לעולם לא בפרומפט) ---
+    # --- Identity and authorization (never in the prompt) ---
     user_id: int
     roles: list[str]
     allowed_doc_ids: list[int]
 
-    # --- תוצרי ביניים ---
+    # --- Intermediate results ---
     intent: str
     domain_hint: str | None
     queries: list[str]
     retrieval: Any                      # RetrievalResult
     tool_results: Annotated[list[dict], _append]
-    policy_facts: dict[str, Any]        # ספים שחולצו ממסמכים
+    policy_facts: dict[str, Any]        # Thresholds extracted from documents
 
-    # --- פעולה ממתינה ---
+    # --- Pending action ---
     pending_action: dict | None
     approval: dict | None
 
-    # --- פלט ---
+    # --- Output ---
     answer: str
     citations: list[dict]
     refused: bool
@@ -46,7 +46,7 @@ class AgentState(TypedDict, total=False):
     hallucination_flag: bool
     injection_detected: bool
 
-    # --- בקרה ---
+    # --- Control ---
     tool_calls: int
     stop_reason: str
     stage_latencies: dict[str, int]

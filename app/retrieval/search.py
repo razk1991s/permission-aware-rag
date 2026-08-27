@@ -1,13 +1,10 @@
-"""שליפה היברידית: וקטורי ולקסיקלי, מסוננים בהרשאות, ממוזגים ב-RRF.
+"""Hybrid retrieval: authorized vector and lexical search fused with RRF.
 
-זה הלב של המערכת. שלוש נקודות שחשוב לשים לב אליהן בקוד שלמטה:
+This is the core of the system. Three important properties:
 
-1. ה-CTE בשם allowed מסנן הרשאות **בתוך** השאילתה שמדרגת. אין סינון
-   בדיעבד ואין רשימה שמורכבת באפליקציה (ADR 0002).
-2. המיזוג הוא RRF — לפי מיקום בדירוג ולא לפי ציון — כי ציון קוסינוס
-   וציון ts_rank_cd אינם ברי־השוואה (ADR 0003).
-3. הסינון הלקסיקלי משתמש בקונפיגורציית simple, כי לפוסטגרס אין תמיכה
-   בעברית (ADR 0004).
+1. The `allowed` CTE enforces authorization **inside** the ranking query.
+2. RRF fuses by rank rather than score because cosine and ts_rank_cd are not comparable.
+3. Lexical search uses the `simple` configuration because PostgreSQL has no Hebrew configuration.
 """
 
 from __future__ import annotations
@@ -39,7 +36,7 @@ class Candidate:
     bm25_rank: int | None = None
     rrf_score: float = 0.0
     rerank_score: float | None = None
-    rerank_delta: int | None = None      # כמה מקומות הרירנקר הזיז אותו
+    rerank_delta: int | None = None      # Positions moved by the reranker
     matched_queries: list[str] = field(default_factory=list)
 
     @property
@@ -48,7 +45,7 @@ class Candidate:
         if self.section_path:
             parts.append(self.section_path.split(" › ")[-1])
         if self.page_number:
-            parts.append(f"עמ' {self.page_number}")
+            parts.append(f"p. {self.page_number}")
         return ", ".join(parts)
 
     @property
@@ -123,7 +120,7 @@ _LEXICAL_SQL = text(
     """
 )
 
-# חיפוש טריגרם — רשת ביטחון להטיות ולשגיאות כתיב בעברית, שם אין stemmer.
+# Trigram search is a fallback for inflections and Hebrew spelling variants.
 _TRIGRAM_SQL = text(
     """
     WITH allowed AS (
@@ -207,7 +204,7 @@ async def lexical_search(
     }
     rows = (await conn.execute(_LEXICAL_SQL, params)).all()
     if not rows:
-        # אין התאמת טוקנים — ננסה טריגרם לפני שמוותרים
+        # No token match; try trigrams before giving up.
         rows = (await conn.execute(_TRIGRAM_SQL, params)).all()
 
     out = []
@@ -223,11 +220,10 @@ async def lexical_search(
 def reciprocal_rank_fusion(
     lists: list[list[Candidate]], *, k: int | None = None, limit: int | None = None
 ) -> list[Candidate]:
-    """ממזג רשימות מדורגות לפי מיקום, לא לפי ציון.
+    """Fuse ranked lists by position rather than score.
 
-    למה לא ממוצע משוקלל: ציון קוסינוס נע ב-[0,1] ו-ts_rank_cd בסקאלה
-    פתוחה שתלויה בקורפוס ובשאילתה. נרמול ביניהם הוא ניחוש; RRF פשוט
-    לא זקוק לו. ראה ADR 0003.
+    Cosine scores are in [0,1], while ts_rank_cd depends on corpus and query.
+    Normalizing them is guesswork; RRF avoids that. See ADR 0003.
     """
     k = k or settings.rrf_k
     merged: dict[int, Candidate] = {}
@@ -240,7 +236,7 @@ def reciprocal_rank_fusion(
                 merged[cand.chunk_id] = cand
                 existing = cand
             else:
-                # מאחדים ציונים משתי הרשימות לאותו מועמד
+                # Merge scores from both lists for the same candidate.
                 existing.vector_score = existing.vector_score or cand.vector_score
                 existing.vector_rank = existing.vector_rank or cand.vector_rank
                 existing.bm25_score = existing.bm25_score or cand.bm25_score
@@ -254,10 +250,10 @@ def reciprocal_rank_fusion(
 async def expand_with_neighbours(
     conn: AsyncConnection, candidates: list[Candidate], *, user_id: int, window: int = 1
 ) -> list[Candidate]:
-    """מצרף לצ'אנק המוביל את שכניו במסמך.
+    """Add neighboring chunks from the same document to the top result.
 
-    מועיל כשהתשובה יושבת על גבול צ'אנקים — הכותרת בצ'אנק אחד והפירוט
-    בבא אחריו. השכנים עוברים את אותו סינון הרשאות.
+    Useful when an answer spans a chunk boundary. Neighbors pass the same
+    authorization filter.
     """
     if not candidates:
         return candidates

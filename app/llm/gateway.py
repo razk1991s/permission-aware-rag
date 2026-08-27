@@ -1,10 +1,10 @@
-"""שער המודלים — נקודת היציאה היחידה לכל קריאה למודל.
+"""Model gateway - the only exit point for model calls.
 
-כל קריאה עוברת כאן, ולכן כאן יושבים ניתוב לפי משימה, מכסות, הסרת PII,
-fallback, ותיעוד עלות. ראה ADR 0007.
+Every call passes through here, so task routing, quotas, PII removal, fallback,
+and cost tracking live here. See ADR 0007.
 
-הערה על שיפוט עצמי: המשימה `judge` מנותבת במכוון למודל אחר מזה שמייצר
-את התשובה. מודל שמתבקש לשפוט את הפלט של עצמו נוטה לאשר אותו.
+The `judge` task is deliberately routed to a different model from the one
+that generated the answer. A model asked to judge its own output tends to approve it.
 """
 
 from __future__ import annotations

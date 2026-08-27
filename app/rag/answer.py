@@ -1,8 +1,8 @@
-"""ייצור התשובה, ולידציה, וסירוב.
+"""Answer generation, validation, and refusal.
 
-הסירוב הוא פיצ'ר ולא כישלון. מערכת שיודעת לומר "אין לי מידע מספק" היא
-מערכת שאפשר להתקין בבנק. לכן `refused` הוא שדה מובנה בטרייס, והוא נמדד
-בחבילת ההערכה כמו כל מדד אחר.
+Refusal is a feature, not a failure. A system that can say it lacks enough
+information is a system that can be deployed in a bank. Therefore `refused`
+is a first-class trace field and is measured like every other metric.
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ GROUNDEDNESS_SCHEMA = {
     "required": ["grounded", "score"],
 }
 
-GROUNDEDNESS_PROMPT = """בדוק אם כל טענה בתשובה נתמכת בקטעים שסופקו.
+GROUNDEDNESS_PROMPT = """Check whether every claim in the answer is supported by the supplied chunks.
 
 החזר JSON:
   grounded    — true אם כל טענה נתמכת
@@ -97,7 +97,7 @@ def _citations_from(context: list[Candidate], cited_markers: list[int]) -> list[
 async def check_groundedness(
     answer_text: str, context_block: str, *, gateway: LLMGateway, user_id: int | None
 ) -> tuple[float, list[str]]:
-    """קריאה שנייה, זולה, למודל **אחר** מזה שייצר את התשובה.
+    """Use a cheap second call to a model **different** from the answer model.
 
     מודל שמתבקש לשפוט את הפלט של עצמו נוטה לאשר אותו. הניתוב למשימת
     judge בשער המודלים הוא מה שמונע את זה.
@@ -120,7 +120,7 @@ async def check_groundedness(
         return float(data.get("score", 0.0)), list(data.get("unsupported") or [])
     except Exception as exc:  # noqa: BLE001
         log.warning("groundedness check failed: %s", exc)
-        return -1.0, []  # ‎-1 = לא נבדק. לא מתחזים לבדיקה שלא קרתה.
+        return -1.0, []  # -1 means unchecked; never pretend a check occurred.
 
 
 async def generate_answer(
@@ -134,14 +134,14 @@ async def generate_answer(
     verify = settings.groundedness_enabled if verify_grounding is None else verify_grounding
     timings = dict(retrieval.stage_latencies)
 
-    # --- סף סירוב: לפני שמבזבזים קריאה למודל ---
+    # --- Refusal threshold: before spending a model call ---
     if retrieval.below_threshold:
         return Answer(
             text=REFUSAL_TEXT,
             refused=True,
             refusal_reason=(
-                "אין קטעים מורשים" if not retrieval.candidates
-                else f"ציון מוביל {retrieval.top_score:.2f} מתחת לסף"
+                "No authorized chunks" if not retrieval.candidates
+                else f"Top score {retrieval.top_score:.2f} is below the threshold"
             ),
             stage_latencies=timings,
             stop_reason="below_threshold",
@@ -159,7 +159,7 @@ async def generate_answer(
         resp = await gateway.complete(task="generation", messages=messages, user_id=user_id)
         timings["generation"] = int((time.perf_counter() - t0) * 1000)
 
-        # --- ולידציה דטרמיניסטית של הפלט ---
+        # --- Deterministic output validation ---
         t0 = time.perf_counter()
         egress = verify_egress(resp.text, len(context))
         timings["validation"] = int((time.perf_counter() - t0) * 1000)
@@ -169,7 +169,7 @@ async def generate_answer(
             log.warning("egress check failed (attempt %d): %s", attempt + 1, egress.reason)
             attempt += 1
             if attempt <= settings.max_answer_retries:
-                # ניסיון אחד נוסף עם הקשר רחב יותר, ואז מסרבים.
+                # Retry once with broader context, then refuse.
                 context = build_context(retrieval.all_candidates[: settings.retrieval_top_k * 2])
                 continue
             return Answer(
@@ -186,7 +186,7 @@ async def generate_answer(
 
         citations = _citations_from(context, egress.cited)
 
-        # --- בדיקת ביסוס ---
+        # --- Groundedness check ---
         groundedness: float | None = None
         hallucination = False
         if verify:
@@ -200,15 +200,15 @@ async def generate_answer(
                 hallucination = score < settings.min_groundedness
                 if hallucination and attempt < settings.max_answer_retries:
                     attempt += 1
-                    last_reason = f"ביסוס נמוך ({score:.2f}): {unsupported[:2]}"
+                    last_reason = f"Low groundedness ({score:.2f}): {unsupported[:2]}"
                     continue
 
         if not citations and not egress.cited:
-            # תשובה בלי ציטוט אחד היא תשובה שאי אפשר לאמת.
+            # An answer without citations cannot be verified.
             return Answer(
                 text=REFUSAL_TEXT,
                 refused=True,
-                refusal_reason="התשובה לא כללה ציטוט לאף מקור",
+                refusal_reason="The answer contained no citation to a source",
                 served_chunk_ids=[c.chunk_id for c in context],
                 stage_latencies=timings,
                 injection_detected=guard.triggered,
@@ -230,7 +230,7 @@ async def generate_answer(
     return Answer(
         text=REFUSAL_TEXT,
         refused=True,
-        refusal_reason=last_reason or "נכשלה הולידציה",
+        refusal_reason=last_reason or "Validation failed",
         stage_latencies=timings,
         retries=attempt,
         stop_reason="validation_failed",

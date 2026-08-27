@@ -1,12 +1,12 @@
-"""מדדי הערכה.
+"""Evaluation metrics.
 
-הפרדה מכוונת בין שני סוגי מדדים:
+Metrics are deliberately divided into two types:
 
-**מדדי שליפה** — דטרמיניסטיים, זולים, ורצים בכל PR. אין בהם מודל, ולכן
-אין בהם רעש. אלה המדדים שמותר לתלות בהם שער merge.
+**Retrieval metrics** are deterministic, inexpensive, and run on every PR.
+They contain no model noise and can safely be merge gates.
 
-**מדדי ייצור** — דורשים שיפוט, יקרים, ורצים nightly. הם משתנים בין
-הרצות גם כשהקוד לא השתנה, ולכן השער שלהם רחב יותר.
+**Generation metrics** require judgment, cost more, and run nightly. They vary
+between runs even without code changes, so their gates are wider.
 """
 
 from __future__ import annotations
@@ -14,9 +14,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 
-# ------------------------------------------------------------ שליפה
+# ------------------------------------------------------------ Retrieval
 def recall_at_k(retrieved: list[int], relevant: list[int], k: int = 5) -> float:
-    """האם קטע רלוונטי כלשהו נכנס ל-top-k. בינארי לכל שאלה."""
+    """Whether any relevant chunk enters top-k; binary per question."""
     if not relevant:
         return 0.0
     return 1.0 if set(retrieved[:k]) & set(relevant) else 0.0
@@ -45,7 +45,7 @@ def context_precision(retrieved: list[int], relevant: list[int], k: int = 5) -> 
     return len(set(retrieved[:k]) & set(relevant)) / len(retrieved[:k])
 
 
-# ------------------------------------------------------------ תשובה
+# ------------------------------------------------------------ Answer
 def citation_accuracy(cited_chunk_ids: list[int], served_chunk_ids: list[int]) -> float:
     """איזה חלק מהציטוטים מצביע על קטע שבאמת נשלח למודל.
 
@@ -73,7 +73,7 @@ def refusal_correct(refused: bool, expected_refusal: bool) -> float:
     return 1.0 if refused == expected_refusal else 0.0
 
 
-# ------------------------------------------------------------ צבירה
+# ------------------------------------------------------------ Aggregation
 @dataclass
 class ItemScore:
     item_id: str
@@ -121,9 +121,9 @@ class RunMetrics:
             "answer_correctness": self._mean("answer_correctness"),
             "refusal_accuracy": self._mean("refusal_correct"),
             "groundedness": self._mean("groundedness"),
-            # דליפה אמיתית בלבד — חייב אפס
+            # Actual leaks only - must be zero.
             "permission_leak_rate": round(len(leaks) / (len(permission) or 1), 4),
-            # לא סירב אף שהיה צריך, אבל גם לא חשף כלום — באג התנהגותי
+            # Failed to refuse without exposing data - a behavioral bug.
             "missed_refusal_rate": round(len(wrong_refusals) / (len(permission) or 1), 4),
             "permission_items": len(permission),
             "hallucination_rate": self._mean("hallucination"),

@@ -1,7 +1,7 @@
-"""צינור האינג'סט: קובץ → בלוקים → ניקוי → צ'אנקים → מסד נתונים.
+"""Ingestion pipeline: file -> blocks -> cleaning -> chunks -> database.
 
-סדר הפעולות חשוב: שורות ה-ACL נכתבות באותה טרנזקציה שכותבת את המסמך.
-מסמך בלי ACL הוא מסמך שאיש לא רשאי לראות — וזה נכשל סגור בכוונה.
+Operation order matters: ACL rows are written in the same transaction as the
+document. A document without ACL is visible to nobody; this intentionally fails closed.
 """
 
 from __future__ import annotations
@@ -50,10 +50,10 @@ class IngestResult:
 
 
 def as_date(value: str | dt.date | None) -> dt.date | None:
-    """asyncpg מצפה ל-datetime.date אמיתי בפרמטר מטיפוס date, לא למחרוזת.
+    """Convert ISO strings to datetime.date values expected by asyncpg.
 
-    ה-manifest מגיע מ-JSON ולכן התאריכים בו הם מחרוזות ISO — ההמרה חייבת
-    לקרות כאן, ולא בשאילתה.
+    The manifest comes from JSON, so dates are ISO strings. Conversion belongs
+    here rather than inside the query.
     """
     if value is None or isinstance(value, dt.date):
         return value
@@ -70,14 +70,14 @@ def sha256(path: Path) -> str:
 
 
 def build_chunks(path: Path) -> tuple[list[Chunk], str]:
-    """פרסור → ניקוי → חיתוך. ללא מסד נתונים, ולכן קל לבדיקה."""
+    """Parse, clean, and chunk without a database, making this easy to test."""
     file_type = FILE_TYPES[path.suffix.lower()]
     blocks = clean_blocks(parse(path))
     return chunk_document(blocks, file_type), file_type
 
 
 def _vector_literal(vec: list[float]) -> str:
-    """pgvector מקבל מחרוזת בפורמט '[0.1,0.2,...]'."""
+    """Format a vector as the '[0.1,0.2,...]' string accepted by pgvector."""
     return "[" + ",".join(f"{v:.6f}" for v in vec) + "]"
 
 
@@ -101,14 +101,14 @@ async def ingest_file(
 
     if existing and not replace:
         return IngestResult(meta.doc_id, existing.id, 0, skipped=True,
-                            reason="מסמך זהה כבר קיים (checksum או doc_id)")
+                            reason="Identical document already exists (checksum or doc_id)")
     if existing and replace:
-        # מחיקת המסמך מוחקת בשרשור גם צ'אנקים וגם ACL
+        # Cascading deletion removes the chunks and ACL rows as well.
         await conn.execute(text("DELETE FROM documents WHERE id = :i"), {"i": existing.id})
 
     chunks, file_type = build_chunks(path)
     if not chunks:
-        return IngestResult(meta.doc_id, None, 0, skipped=True, reason="לא חולץ טקסט מהקובץ")
+        return IngestResult(meta.doc_id, None, 0, skipped=True, reason="No text was extracted from the file")
 
     row = (
         await conn.execute(
@@ -146,9 +146,9 @@ async def ingest_file(
     ).first()
     document_id = row.id
 
-    # --- ACL. חובה, ואין ברירת מחדל "פתוח לכולם". ---
+    # --- ACL is required; there is no "open to everyone" default. ---
     if not meta.allowed_roles:
-        raise ValueError(f"{meta.doc_id}: חייבים לציין allowed_roles — מסמך בלי ACL אינו נטען")
+        raise ValueError(f"{meta.doc_id}: allowed_roles is required; documents without ACL are not loaded")
     await conn.execute(
         text(
             """
@@ -166,11 +166,11 @@ async def ingest_file(
     ).scalar_one()
     if granted != len(meta.allowed_roles):
         raise ValueError(
-            f"{meta.doc_id}: נוצרו {granted} שורות ACL מתוך {len(meta.allowed_roles)} "
-            f"— כנראה תפקיד שאינו קיים בטבלת roles"
+            f"{meta.doc_id}: created {granted} ACL rows out of {len(meta.allowed_roles)}; "
+            "a role may be missing from the roles table"
         )
 
-    # --- הטמעות ---
+    # --- Embeddings ---
     vectors: list[list[float]] | None = None
     if with_embeddings:
         vectors = embed_texts([c.content for c in chunks])

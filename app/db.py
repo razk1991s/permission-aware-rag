@@ -1,8 +1,8 @@
-"""חיבור למסד הנתונים והרצת מיגרציות.
+"""Database connections and migration execution.
 
-הפרויקט לא משתמש ב-ORM: כל השאילתות נכתבות ב-SQL מפורש. הסיבה היא
-ADR 0001 ו-ADR 0002 — הליבה של המערכת היא שאילתה אחת שמסננת הרשאות
-ומדרגת באותו מהלך, ושכבת הפשטה שמסתירה אותה מזיקה יותר משהיא עוזרת.
+The project does not use an ORM: all queries are explicit SQL. This follows
+ADR 0001 and ADR 0002; the core retrieval query enforces authorization and
+ranking together, and an abstraction that hides it would be counterproductive.
 """
 
 from __future__ import annotations
@@ -42,13 +42,13 @@ async def dispose_engine() -> None:
 
 
 async def get_conn() -> AsyncIterator[AsyncConnection]:
-    """תלות ל-FastAPI: חיבור בתוך טרנזקציה, נסגר בסוף הבקשה."""
+    """FastAPI dependency: provide a transactional connection per request."""
     engine = get_engine()
     async with engine.begin() as conn:
         yield conn
 
 
-# ---------------------------------------------------------------- מיגרציות
+# ---------------------------------------------------------------- Migrations
 MIGRATIONS_DIR: Path = ROOT / "migrations"
 
 _TRACKING_TABLE = """
@@ -60,10 +60,10 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 
 
 async def run_migrations() -> list[str]:
-    """מריץ כל קובץ .sql בתיקיית migrations לפי סדר שמות, פעם אחת בלבד.
+    """Run each SQL file in migrations once, in filename order.
 
-    מספיק ל-30 מיגרציות ולפרויקט בגודל הזה. אם הפרויקט יגדל לכדי שינויי
-    סכמה שמחייבים downgrade — כאן המקום להחליף ל-Alembic.
+    This is sufficient for a project of this size. If schema changes require
+    downgrades, replace this implementation with Alembic.
     """
     applied: list[str] = []
     engine = get_engine()
@@ -78,9 +78,9 @@ async def run_migrations() -> list[str]:
             if path.name in done:
                 continue
             log.info("applying migration %s", path.name)
-            # asyncpg מריץ כל פקודה כ-prepared statement, ופרוטוקול זה
-            # אינו תומך בכמה פקודות במחרוזת אחת. לכן פונים ישירות לחיבור
-            # הנהג, שמשתמש ב-simple query protocol ומריץ קובץ שלם.
+            # asyncpg sends each command as a prepared statement, which does
+            # not support multiple commands in one string. Use the raw driver
+            # connection and its simple query protocol for the complete file.
             raw = await conn.get_raw_connection()
             await raw.driver_connection.execute(path.read_text(encoding="utf-8"))
             await conn.execute(

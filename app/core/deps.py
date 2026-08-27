@@ -1,8 +1,8 @@
-"""תלויות FastAPI: זהות, הרשאות ותיעוד.
+"""FastAPI dependencies: identity, authorization, and audit logging.
 
-עיקרון מרכזי (ADR 0002): ההרשאות נפתרות פעם אחת, בתחילת הבקשה, מתוך
-ה-JWT ומסד הנתונים. הן נכנסות ל-CurrentUser ולא עוברות דרך שום פרמטר
-שגורם חיצוני — משתמש, מסמך או מודל — יכול להשפיע עליו.
+Core principle (ADR 0002): authorization is resolved once at request start
+from the JWT and database. It is stored in CurrentUser and is not passed
+through a parameter that a user, document, or model can influence.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ class CurrentUser:
         return bool(self.roles.intersection(roles))
 
 
-# ---------------------------------------------------------------- תיעוד
+# ---------------------------------------------------------------- Audit
 async def audit(
     conn: AsyncConnection,
     *,
@@ -49,7 +49,7 @@ async def audit(
     actor_type: str = "user",
     detail: dict | None = None,
 ) -> None:
-    """כותב שורה ל-audit_log. הטבלה append-only — אין כאן עדכון או מחיקה."""
+    """Write one row to audit_log. The table is append-only."""
     await conn.execute(
         text(
             """INSERT INTO audit_log (actor_id, actor_type, action, resource, outcome, detail)
@@ -66,7 +66,7 @@ async def audit(
     )
 
 
-# ---------------------------------------------------------------- הרשאות
+# ---------------------------------------------------------------- Authorization
 ALLOWED_DOCS_SQL = text(
     """
     SELECT DISTINCT a.document_id
@@ -79,10 +79,10 @@ ALLOWED_DOCS_SQL = text(
 
 
 async def resolve_allowed_doc_ids(conn: AsyncConnection, user_id: int) -> frozenset[int]:
-    """אילו מסמכים המשתמש רשאי לקרוא. זו נקודת האמת היחידה.
+    """Return the documents the user may read; this is the single source of truth.
 
-    admin אינו מקבל כאן יחס מיוחד: ה-ACL שלו נובע משורות אמיתיות בטבלה,
-    שנוצרות באינג'סט. כך אין מסלול עוקף שצריך לזכור לתחזק.
+    Admin receives no special bypass here: its ACL also comes from real table
+    rows created during ingestion, leaving no separate bypass to maintain.
     """
     rows = await conn.execute(ALLOWED_DOCS_SQL, {"user_id": user_id})
     return frozenset(r[0] for r in rows.all())
@@ -106,22 +106,22 @@ async def get_current_user(
     authorization: Annotated[str | None, Header()] = None,
 ) -> CurrentUser:
     if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "נדרש טוקן גישה")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Access token required")
 
     try:
         payload = decode_access_token(authorization.split(" ", 1)[1].strip())
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "הטוקן פג תוקף") from None
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Access token expired") from None
     except jwt.PyJWTError:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "טוקן לא תקין") from None
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid access token") from None
 
     user_id = int(payload["sub"])
     row = (await conn.execute(USER_SQL, {"user_id": user_id})).first()
     if row is None or not row.is_active:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "המשתמש אינו פעיל")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "User is inactive")
 
-    # התפקידים נלקחים מהמסד ולא מה-JWT: טוקן שהונפק לפני שינוי תפקיד
-    # לא יעניק הרשאה שכבר נשללה.
+    # Roles come from the database rather than the JWT, so an old token cannot
+    # restore access that was revoked.
     roles = frozenset(row.roles)
     allowed = await resolve_allowed_doc_ids(conn, user_id)
     return CurrentUser(
@@ -137,7 +137,7 @@ UserDep = Annotated[CurrentUser, Depends(get_current_user)]
 
 
 def require_roles(*required: str):
-    """תלות שדורשת לפחות אחד מהתפקידים. כל דחייה נרשמת ל-audit_log."""
+    """Require at least one role; every denial is recorded in audit_log."""
 
     async def _guard(user: UserDep, conn: ConnDep) -> CurrentUser:
         if not user.has_any(*required):
@@ -149,7 +149,7 @@ def require_roles(*required: str):
                 resource=",".join(required),
                 detail={"user_roles": sorted(user.roles)},
             )
-            raise HTTPException(status.HTTP_403_FORBIDDEN, "אין לך הרשאה לפעולה זו")
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "You are not authorized for this action")
         return user
 
     return _guard

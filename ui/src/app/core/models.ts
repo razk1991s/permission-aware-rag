@@ -1,8 +1,8 @@
 /**
- * חוזי ה-API, מטופסים.
+ * Typed API contracts.
  *
- * הטיפוסים כאן משקפים אחד לאחד את מודלי ה-Pydantic בצד השרת. כשחוזה
- * משתנה שם, הקומפילציה כאן נשברת — וזו בדיוק המטרה.
+ * These types mirror the server-side Pydantic models. When a contract changes
+ * on the server, compilation fails here, which is exactly the intended safeguard.
  */
 
 export type Role = 'admin' | 'hr' | 'finance' | 'support' | 'employee';
@@ -103,7 +103,7 @@ export interface TierPreview {
   required_role: string;
   policy_citation: string;
   reason: string;
-  /** document = הסף נקרא מהנוהל · hard_ceiling = נכפתה תקרה · fallback = השליפה נכשלה */
+  /** document = threshold read from procedure; hard_ceiling = ceiling enforced; fallback = retrieval failed */
   source: 'document' | 'hard_ceiling' | 'fallback' | 'stored';
   auto_approved_for_you: boolean;
 }
@@ -131,7 +131,7 @@ export interface RetrievedChunk {
   bm25_score: number | null;
   rrf: number | null;
   rerank_score: number | null;
-  /** חיובי = הרירנקר העלה אותו במיקום, שלילי = הוריד */
+  /** Positive means the reranker moved it up; negative means it moved it down. */
   rerank_delta: number | null;
 }
 

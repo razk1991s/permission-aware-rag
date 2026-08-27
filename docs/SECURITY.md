@@ -1,62 +1,63 @@
-# מודל האבטחה
+# Security Model
 
-מסמך זה מתאר איפה כל בקרה יושבת, ולמה שם. הכלל המנחה: **המודל הוא רכיב הסקה שאינו מהימן, לא גבול אבטחה.**
+This document describes where each control lives and why. The guiding principle is: **the model is an untrusted inference component, not a security boundary.**
 
-## שכבות, מהחלשה לחזקה
+## Layers from weakest to strongest
 
-| # | שכבה | היכן בקוד | מסתמכת על ציות המודל? |
+| # | Layer | Code location | Depends on model compliance? |
 |---|---|---|---|
-| 1 | הפרדת נתונים מהוראות בפרומפט | `app/security/prompt_guard.py` | **כן** — ולכן החלשה |
-| 2 | ההרשאות מחוץ להישג ידו של המודל | `app/core/deps.py`, `app/retrieval/search.py` | לא |
-| 3 | אכיפה בעוטף הכלי | `app/agent/tools.py` — `requires_roles` | לא |
-| 4 | סינון פלט דטרמיניסטי | `verify_egress` | לא |
-| 5 | כשל סגור | לאורך כל הצינור | לא |
+| 1 | Data/instruction separation in prompts | `app/security/prompt_guard.py` | **Yes**, so it is the weakest |
+| 2 | Authorization outside model reach | `app/core/deps.py`, `app/retrieval/search.py` | No |
+| 3 | Tool-boundary enforcement | `app/agent/tools.py` - `requires_roles` | No |
+| 4 | Deterministic output filtering | `verify_egress` | No |
+| 5 | Fail-closed behavior | Throughout the pipeline | No |
 
-שכבה 1 קיימת כדי לסנן את הקל. **אף החלטת אבטחה אינה נשענת עליה.**
+Layer 1 handles low-risk filtering. **No security decision relies on it alone.**
 
-## מדוע ההרשאות אינן פרמטר של כלי
+## Why authorization is not a tool parameter
 
-סכמת `search_documents` שהמודל רואה מכילה `query`, `domain`, `top_k` — וזהו. `user_id` ו-`allowed_doc_ids` מוזרקים על ידי הריצה מתוך `ToolContext`.
+The `search_documents` schema visible to the model contains `query`, `domain`, and `top_k`, and nothing else. `user_id` and `allowed_doc_ids` are injected at runtime through `ToolContext`.
 
-זה ההבדל בין „ביקשתי מהמודל לא לעשות" לבין „המודל לא יכול". מסמך מורעל יכול לשכנע את המודל לנסות לשלוף טבלת שכר; אין מסלול קוד שבו הניסיון הזה מצליח.
+This is the difference between asking the model not to do something and making it impossible for the model to do it. A poisoned document may persuade the model to request a salary table, but there is no code path through which that request can succeed.
 
-## פעולות כתיבה
+## Write actions
 
-| סטטוס | משמעות |
+| Status | Meaning |
 |---|---|
-| `completed` | בוצע בפועל |
-| `pending_approval` | ממתין לאדם |
-| `blocked` | נחסם בהרשאות או במדיניות |
-| `rejected` | אדם דחה |
-| `recommended` | המערכת ממליצה, לא ביצעה |
-| `failed` | שגיאה טכנית |
+| `completed` | Executed |
+| `pending_approval` | Waiting for a human |
+| `blocked` | Blocked by authorization or policy |
+| `rejected` | Rejected by a human |
+| `recommended` | Recommended but not executed |
+| `failed` | Technical error |
 
-**הסוכן לעולם לא מדווח „ביצעתי" על פעולה שלא הושלמה.** דיווח מוטעה בביטחון הוא כשל חמור יותר מחוסר ידיעה.
+**The agent never reports that it executed an action that has not completed.** Confidently false reporting is more serious than acknowledging uncertainty.
 
-כללים נוספים:
-- הסמכות נבדקת **בזמן ההחלטה**, לא בזמן הבקשה.
-- מבקש הפעולה אינו יכול לאשר את עצמו.
-- מעל `APPROVAL_HARD_CEILING` תמיד נדרשת ועדה, בלי קשר למה שהשליפה החזירה.
+Additional rules:
 
-## תיעוד
+- Authority is checked when the decision is made, not when the request is created.
+- The requester cannot approve their own action.
+- Amounts above `APPROVAL_HARD_CEILING` always require committee approval.
 
-`audit_log` היא **append-only**. תפקיד האפליקציה אינו אמור להחזיק `UPDATE` או `DELETE` עליה:
+## Audit logging
+
+`audit_log` is **append-only**. The application role should not have `UPDATE` or `DELETE` permissions:
 
 ```sql
 REVOKE UPDATE, DELETE ON audit_log FROM rag_app;
 ```
 
-נרשמים: התחברויות (מוצלחות וכושלות), גישה שנחסמה, הפעלת כלים, בקשות פעולה והחלטות.
+The log records successful and failed logins, blocked access, tool execution, action requests, and decisions.
 
 ## PII
 
-`app/security/pii.py` מסיר לפני שליחה למודל: ת"ז (עם אימות ספרת ביקורת), כרטיס אשראי (Luhn), IBAN, דוא"ל, טלפון.
+`app/security/pii.py` removes national IDs (with check-digit validation), credit cards (Luhn), IBANs, email addresses, and phone numbers before content is sent to the model.
 
-אימות ספרת הביקורת אינו קישוט: בלעדיו כל מספר בן 9 ספרות — כולל מספרי בקשות — היה נמחק, והתשובות היו נהרסות.
+Check-digit validation is important: without it, every nine-digit number, including request IDs, would be removed and answers would be damaged.
 
-## מה לא מכוסה
+## Out of scope
 
-- **הצפנה במנוחה** — באחריות שכבת התשתית.
-- **סבב מפתחות JWT** — מפתח יחיד, ללא `kid`. בפרודקשן נדרש JWKS.
-- **הגבלת קצב** — יש הגבלת מקביליות למודל, אין rate limiting למשתמש.
-- **הזרקה רב־שלבית** — מסמך שמפעיל הוראה רק בשילוב מסמך אחר. הרחבה טבעית לחבילת ה-red-team.
+- **Encryption at rest:** owned by the infrastructure layer.
+- **JWT key rotation:** one key without `kid`; production requires JWKS.
+- **Rate limiting:** model concurrency is limited, but per-user rate limiting is not implemented.
+- **Multi-stage injection:** a document that activates an instruction only when combined with another document; this is a natural extension for the red-team suite.

@@ -1,8 +1,8 @@
-"""חיתוך לצ'אנקים — שלוש אסטרטגיות, לפי סוג התוכן.
+"""Chunking with three strategies selected by content type.
 
-אין אסטרטגיה אחת נכונה. מסמך מדיניות נחתך לפי גבולות סעיפים; גיליון
-אקסל נחתך שורה־שורה; שאלה ותשובה לעולם לא נפרדות. ההחלטה הזו משפיעה
-על איכות השליפה יותר מכל היפר־פרמטר אחר בצינור.
+There is no single correct strategy. Policies split at section boundaries,
+spreadsheets split row by row, and questions stay with their answers. This
+choice affects retrieval quality more than any other pipeline hyperparameter.
 """
 
 from __future__ import annotations
@@ -12,8 +12,8 @@ from dataclasses import dataclass, field
 from app.config import settings
 from app.ingestion.parsers import Block
 
-# עברית מקודדת בערך ב-3 תווים לטוקן במודלים מולטי־לינגואליים.
-# זו הערכה גסה ומכוונת: המטרה היא תקציב עקבי, לא דיוק לטוקן.
+# Hebrew is encoded at roughly three characters per token in multilingual models.
+# This is a deliberate estimate: the goal is a consistent budget, not token accuracy.
 CHARS_PER_TOKEN = 3.0
 
 
@@ -38,9 +38,9 @@ class Chunk:
             self.token_count = estimate_tokens(self.content)
 
 
-# ------------------------------------------------------------ מבנה סעיפים
+# ------------------------------------------------------------ Section structure
 class SectionStack:
-    """שומר את היררכיית הכותרות הפעילה ומרכיב ממנה נתיב סעיף."""
+    """Track active heading hierarchy and build a section path."""
 
     def __init__(self) -> None:
         self._stack: list[tuple[int, str]] = []
@@ -57,7 +57,7 @@ class SectionStack:
         return " › ".join(t for _lvl, t in self._stack)
 
 
-# ------------------------------------------------------------ אסטרטגיה 1
+# ------------------------------------------------------------ Strategy 1
 def chunk_by_structure(
     blocks: list[Block],
     *,
@@ -65,10 +65,10 @@ def chunk_by_structure(
     overlap_ratio: float | None = None,
     min_tokens: int | None = None,
 ) -> list[Chunk]:
-    """חיתוך מודע־מבנה למסמכי מדיניות.
+    """Structure-aware chunking for policy documents.
 
-    הצ'אנק נסגר כשמגיעה כותרת חדשה — גם אם לא הגיע לגודל היעד. סעיף
-    רגולטורי לא נחתך באמצע, ותשובה לא מנותקת מהכותרת שנותנת לה הקשר.
+    A chunk closes when a new heading arrives, even below the target size.
+    Regulatory sections are not split mid-section, and answers retain their heading context.
     """
     target = target_tokens or settings.chunk_target_tokens
     overlap = overlap_ratio if overlap_ratio is not None else settings.chunk_overlap_ratio
@@ -87,7 +87,7 @@ def chunk_by_structure(
             return
         content = "\n".join(buf).strip()
         if estimate_tokens(content) < minimum and chunks:
-            # קטע זעיר — מצרפים לצ'אנק הקודם במקום לייצר רעש
+            # Merge tiny content into the previous chunk instead of creating noise.
             prev = chunks[-1]
             prev.content = f"{prev.content}\n{content}"
             prev.token_count = estimate_tokens(prev.content)
@@ -114,9 +114,8 @@ def chunk_by_structure(
 
     for block in blocks:
         if block.kind == "heading":
-            # גבול סעיף סוגר את הצ'אנק נקי, בלי חפיפה: אחרת סוף הסעיף
-            # הקודם היה נגרר לתוך צ'אנק שנתיב הסעיף שלו כבר שונה, והציטוט
-            # היה מצביע על הסעיף הלא נכון.
+            # Close cleanly at section boundaries. Otherwise the prior section
+            # would leak into a chunk with a different citation path.
             flush(carry_tail=False)
             sections.push(block.level or 1, block.text)
             buf_path = sections.path
@@ -145,14 +144,13 @@ def chunk_by_structure(
     return chunks
 
 
-# ------------------------------------------------------------ אסטרטגיה 2
+# ------------------------------------------------------------ Strategy 2
 def chunk_by_row(blocks: list[Block], *, overlap: int | None = None) -> list[Chunk]:
-    """חיתוך ברמת שורה לגיליונות.
+    """Row-level chunking for spreadsheets.
 
-    כל שורה היא צ'אנק, עם שורה אחת לפניה ואחריה לשמירת הקשר בטבלאות
-    רציפות. שים לב: כותרות העמודות כבר מוזרקות בתוך טקסט השורה על ידי
-    הפרסר — ולכן כותרת עמודה זדונית מוזרקת מחדש בכל שורה (ראה
-    data/redteam ב-INJ-006).
+    Each row is a chunk with neighboring rows for table context. Column headers
+    are already injected into each row by the parser, so a malicious header is
+    repeated in every row (see data/redteam INJ-006).
     """
     n = settings.row_chunk_overlap if overlap is None else overlap
     rows = [b for b in blocks if b.kind == "row"]
@@ -178,9 +176,9 @@ def chunk_by_row(blocks: list[Block], *, overlap: int | None = None) -> list[Chu
     return chunks
 
 
-# ------------------------------------------------------------ אסטרטגיה 3
+# ------------------------------------------------------------ Strategy 3
 def chunk_by_qa(blocks: list[Block]) -> list[Chunk]:
-    """שאלה ותשובה הן יחידה אחת. חיתוך ביניהן הורס את שתיהן."""
+    """Keep each question and answer together as one unit."""
     chunks: list[Chunk] = []
     sections = SectionStack()
     pending: Block | None = None
@@ -203,7 +201,7 @@ def chunk_by_qa(blocks: list[Block]) -> list[Chunk]:
     return chunks
 
 
-# ------------------------------------------------------------ בחירה
+# ------------------------------------------------------------ Selection
 def choose_strategy(blocks: list[Block], file_type: str) -> str:
     kinds = {b.kind for b in blocks}
     if {"question", "answer"} & kinds:
@@ -218,10 +216,10 @@ def choose_strategy(blocks: list[Block], file_type: str) -> str:
 
 
 def chunk_document(blocks: list[Block], file_type: str) -> list[Chunk]:
-    """נקודת הכניסה: בוחר אסטרטגיה ומחזיר צ'אנקים ממוספרים ברצף.
+    """Choose a strategy and return sequentially numbered chunks.
 
-    ‏FAQ מכיל גם זוגות שאלה־תשובה וגם פסקאות מבוא; במקרה כזה מפעילים
-    את שתי האסטרטגיות ומאחדים, כדי שהמבוא לא ייעלם.
+    An FAQ can contain both question-answer pairs and introductory prose; use
+    both strategies in that case so the introduction is not lost.
     """
     strategy = choose_strategy(blocks, file_type)
     if strategy == "qa":

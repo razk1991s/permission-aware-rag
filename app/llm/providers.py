@@ -1,4 +1,4 @@
-"""מימושי ספקים: Ollama מקומי, ו-stub דטרמיניסטי לבדיקות."""
+"""Provider implementations: local Ollama and a deterministic test stub."""
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ class OllamaProvider(LLMProvider):
             "stream": False,
             "options": {"temperature": temperature, "num_predict": max_tokens},
         }
-        # Ollama תומך באכיפת סכמה בצד השרת — עדיף על בקשה מנומסת בפרומפט.
+        # Ollama enforces schemas server-side, which is stronger than a prompt request.
         if json_schema is not None:
             payload["format"] = json_schema
 
@@ -59,7 +59,7 @@ class OllamaProvider(LLMProvider):
             prompt_tokens=data.get("prompt_eval_count", 0),
             completion_tokens=data.get("eval_count", 0),
             latency_ms=int((time.perf_counter() - started) * 1000),
-            estimated_cost=0.0,  # מקומי. השדה נשמר כדי שהמעבר לענן לא ידרוש שינוי סכמה.
+            estimated_cost=0.0,  # Local provider; keep the field for cloud compatibility.
             finish_reason=data.get("done_reason", "stop"),
             raw=data,
         )
@@ -88,12 +88,12 @@ class OllamaProvider(LLMProvider):
 
 # ====================================================================== Stub
 class StubProvider(LLMProvider):
-    """ספק דטרמיניסטי לבדיקות ול-CI — בלי רשת ובלי מודל.
+    """Deterministic provider for tests and CI, with no network or model.
 
-    הוא לא מדמה איכות של מודל אמיתי ולא אמור לדמות. תפקידו לאפשר לבדוק את
-    כל הצנרת — ניתוב, שליפה, ציטוטים, שערי אישור, הזרקות — בלי GPU ובלי
-    הורדות. כל מדידת איכות שמתבצעת מולו חסרת משמעות, ולכן runner ההערכה
-    מסרב לרוץ מולו אלא אם התבקש במפורש.
+    It does not and should not simulate real model quality. Its purpose is to
+    test routing, retrieval, citations, approval gates, and injection defenses
+    without a GPU or downloads. Quality measurements against it are meaningless,
+    so the evaluation runner requires explicit permission to use it.
     """
 
     name = "stub"
@@ -113,7 +113,7 @@ class StubProvider(LLMProvider):
         if json_schema is not None:
             text = json.dumps(self._schema_shaped(json_schema, user), ensure_ascii=False)
         else:
-            # מצטט את המקור הראשון שהוזרק להקשר, כדי שאימות הציטוטים יעבור
+            # Cite the first source injected into context so citation validation passes.
             sources = re.findall(r"id='(S\d+)'", user)
             first = sources[0] if sources else ""
             snippet = self._first_sentence(user)
@@ -135,7 +135,7 @@ class StubProvider(LLMProvider):
 
     @staticmethod
     def _schema_shaped(schema: dict, user: str) -> dict:
-        """בונה אובייקט מינימלי שתואם לסכמה, כדי שהוולידציה תעבור."""
+        """Build a minimal schema-shaped object so validation passes."""
         out: dict = {}
         for key, spec in (schema.get("properties") or {}).items():
             kind = spec.get("type")
@@ -156,10 +156,10 @@ class StubProvider(LLMProvider):
 
     @staticmethod
     def _hash_vector(text: str, dim: int | None = None) -> list[float]:
-        """וקטור דטרמיניסטי מבוסס bag-of-words, מנורמל ל-L2.
+        """Deterministic bag-of-words vector normalized to L2.
 
-        אין לו שום הבנה סמנטית — טקסטים שחולקים מילים יהיו קרובים, וזהו.
-        זה מספיק כדי לבדוק שהשליפה, ה-RRF והאינדקס עובדים.
+        It has no semantic understanding; texts sharing words will be close.
+        This is sufficient to test retrieval, RRF, and index behavior.
         """
         dim = dim or settings.embedding_dim
         vec = [0.0] * dim
@@ -179,4 +179,4 @@ def build_provider(name: str | None = None) -> LLMProvider:
         return OllamaProvider()
     if provider == "stub":
         return StubProvider()
-    raise ValueError(f"ספק לא מוכר: {provider}")
+    raise ValueError(f"Unknown provider: {provider}")

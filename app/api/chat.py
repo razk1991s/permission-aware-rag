@@ -1,8 +1,8 @@
-"""‎/chat — הרצת הסוכן ושמירת הטרייס.
+"""‎/chat - run the agent and persist the trace.
 
-הטרייס אינו לוג שנוסף בדיעבד: כל צומת בגרף מוסיף שדות ל-state, והשמירה
-כאן היא פשוט כתיבה של אותו state. זו הסיבה שהתצפיתיות בפרויקט הזה
-מלאה — היא תוצר לוואי של הארכיטקטורה.
+The trace is not a log added after the fact: every graph node adds fields to
+state, and persistence here simply writes that same state. Observability is
+therefore a natural consequence of the architecture.
 """
 
 from __future__ import annotations
@@ -123,7 +123,7 @@ class SearchRequest(BaseModel):
 
 @router.post("/search")
 async def raw_search(body: SearchRequest, user: UserDep, conn: ConnDep) -> dict:
-    """שליפה גולמית בלי מודל — לדיבאג ולהערכה של שכבת השליפה בלבד."""
+    """Raw retrieval without generation, for debugging and retrieval evaluation."""
     result = await retrieve(
         conn,
         user_id=user.id,

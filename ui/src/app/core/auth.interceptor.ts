@@ -5,11 +5,11 @@ import { catchError, throwError } from 'rxjs';
 import { AuthService } from './auth.service';
 
 /**
- * מצרף את הטוקן לכל קריאה, ומנתק אוטומטית ב-401.
+ * Attach the token to every request and log out automatically on 401.
  *
- * ה-TTL של הטוקן הוא 15 דקות (JWT_TTL_MINUTES). ניתוק על 401 הוא
- * ההתנהגות הנכונה כאן: אין refresh token בפרויקט, ומוטב שהמשתמש
- * יתחבר מחדש מאשר שיראה שגיאות שלא מובנות לו.
+ * The token TTL is 15 minutes (JWT_TTL_MINUTES). Logging out on 401 is
+ * intentional: the project has no refresh token, so re-authentication is
+ * clearer than showing the user unexplained errors.
  */
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const auth = inject(AuthService);

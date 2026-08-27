@@ -1,20 +1,17 @@
-"""פעולות כתיבה ושערי אישור.
+"""Write actions and approval gates.
 
-זה החלק שהופך את המערכת ממערכת שקוראת למערכת שכותבת — ולכן זה גם החלק
-שדורש ממשל. שלושה עקרונות:
+This module turns the system from read-only into a system that writes,
+so it is governed by three principles:
 
-1. פעולה שדורשת אישור **נעצרת ונשמרת**, ולא מבוצעת ואז מבוטלת.
-2. דרג האישור נגזר מהנוהל, והציטוט שהוביל אליו נשמר עם הבקשה — כדי
-   שהמאשר יוכל לאמת את ההיגיון ולא רק לסמוך עליו.
-3. הסמכות נבדקת **בזמן ההחלטה**, לא בזמן הבקשה: מי שאיבד תפקיד לא
-   יכול לאשר בקשה שהמתינה מאז.
+1. An action requiring approval is stopped and persisted, not executed and later canceled.
+2. The approval tier is derived from the procedure, and its citation is stored with the request.
+3. Authority is checked when the decision is made, not when the request is created.
 
-הערה על מימוש (ADR 0008): במקום checkpointer של LangGraph, המצב הדרוש
-להשלמת הפעולה נשמר בטבלה `agent_actions` שלנו. הסיבה מעשית —
-langgraph-checkpoint-postgres מבוסס psycopg, והמערכת כולה על asyncpg,
-ושני דרייברים לאותו מסד הם מחיר תפעולי שלא משתלם בקנה המידה הזה.
-הפעולות שנשמרות כאן הן פשוטות ומוגדרות היטב, ולכן טבלה מפורשת גם
-קריאה יותר וגם ניתנת לתחקור ב-SQL.
+Implementation note (ADR 0008): instead of the LangGraph checkpointer, the
+state required to complete an action is stored in our `agent_actions` table.
+The PostgreSQL checkpoint package uses psycopg while the application uses
+asyncpg, so maintaining two drivers is not worthwhile at this scale.
+Explicit persisted actions are also easier to inspect in SQL.
 """
 
 from __future__ import annotations
@@ -71,19 +68,19 @@ class ActionRecord:
         return asdict(self)
 
 
-# ------------------------------------------------------------- הגדרת פעולות
+# ------------------------------------------------------------- Action definitions
 @dataclass(frozen=True)
 class ActionSpec:
     name: str
     description: str
     required_roles: tuple[str, ...]
-    amount_field: str | None       # השדה שקובע את דרג האישור
+    amount_field: str | None       # Field that determines the approval tier
 
 
 ACTION_SPECS: dict[str, ActionSpec] = {
     "create_refund": ActionSpec(
         "create_refund",
-        "פתיחת בקשת זיכוי ללקוח",
+        "Create a customer refund request",
         ("support", "finance", "admin"),
         amount_field="amount",
     ),
@@ -94,7 +91,7 @@ class ActionNotAllowed(PermissionError):
     pass
 
 
-# ------------------------------------------------------------------ בקשה
+# ------------------------------------------------------------------ Request
 async def request_action(
     conn: AsyncConnection,
     *,
@@ -106,7 +103,7 @@ async def request_action(
 ) -> ActionRecord:
     spec = ACTION_SPECS.get(action_type)
     if spec is None:
-        raise ActionNotAllowed(f"סוג פעולה לא מוכר: {action_type}")
+        raise ActionNotAllowed(f"Unknown action type: {action_type}")
 
     if not roles.intersection(spec.required_roles):
         await audit(
@@ -122,20 +119,20 @@ async def request_action(
             tier=None,
             user_id=user_id,
             trace_uuid=trace_uuid,
-            result={"reason": "אין הרשאה לבקש פעולה זו"},
+            result={"reason": "You are not authorized to request this action"},
         )
 
     amount = float(payload.get(spec.amount_field or "", 0) or 0)
     tier = await resolve_approval_tier(conn, user_id=user_id, amount=amount, action_type=action_type)
 
-    # מי שכבר מחזיק בתפקיד המאשר — הפעולה מאושרת אוטומטית ומבוצעת מיד.
+    # A user who already has the required role is approved and executed immediately.
     auto = tier.role in roles or "admin" in roles
     if auto:
         record = await _insert(
             conn, thread_id=str(uuid.uuid4()), action_type=action_type, payload=payload,
             status=ActionStatus.PENDING, tier=tier, user_id=user_id, trace_uuid=trace_uuid,
         )
-        return await _execute_and_close(conn, record, approver_id=user_id, note="אישור אוטומטי בסמכות")
+        return await _execute_and_close(conn, record, approver_id=user_id, note="Automatic approval by authority")
 
     record = await _insert(
         conn, thread_id=str(uuid.uuid4()), action_type=action_type, payload=payload,
@@ -204,7 +201,7 @@ async def _insert(
     )
 
 
-# ------------------------------------------------------------------ החלטה
+# ------------------------------------------------------------------ Decision
 async def decide_action(
     conn: AsyncConnection,
     *,
@@ -225,9 +222,9 @@ async def decide_action(
         )
     ).first()
     if row is None:
-        raise ActionNotAllowed("הבקשה לא נמצאה")
+        raise ActionNotAllowed("Request not found")
     if row.status != ActionStatus.PENDING:
-        raise ActionNotAllowed(f"הבקשה כבר טופלה (סטטוס {row.status})")
+        raise ActionNotAllowed(f"Request already handled (status {row.status})")
 
     tier = ApprovalTier(
         name=row.required_role or "committee",
@@ -279,11 +276,11 @@ async def decide_action(
     return await _execute_and_close(conn, record, approver_id=approver_id, note=note)
 
 
-# ------------------------------------------------------------------ ביצוע
+# ------------------------------------------------------------------ Execution
 async def _execute_and_close(
     conn: AsyncConnection, record: ActionRecord, *, approver_id: int, note: str | None
 ) -> ActionRecord:
-    """מבצע את הפעולה בפועל. כאן, ורק כאן, נכתב משהו לנתונים התפעוליים."""
+    """Execute the action. Operational data is written here and nowhere else."""
     try:
         result = await _perform(conn, record)
         status = ActionStatus.COMPLETED
@@ -331,7 +328,7 @@ async def _perform(conn: AsyncConnection, record: ActionRecord) -> dict:
             )
         ).first()
         if customer is None:
-            raise ValueError(f"לא נמצא לקוח בשם {p.get('customer_name')!r}")
+            raise ValueError(f"Customer not found: {p.get('customer_name')!r}")
 
         row = (
             await conn.execute(
@@ -343,16 +340,16 @@ async def _perform(conn: AsyncConnection, record: ActionRecord) -> dict:
                 {
                     "cid": customer.id,
                     "amount": float(p["amount"]),
-                    "reason": p.get("reason") or "נפתח דרך הסוכן",
+                    "reason": p.get("reason") or "Created by the agent",
                 },
             )
         ).first()
         return {"refund_request_id": row.id, "customer_id": customer.id}
 
-    raise ValueError(f"אין מימוש לפעולה {record.action_type}")
+    raise ValueError(f"Action is not implemented: {record.action_type}")
 
 
-# ------------------------------------------------------------------ קריאה
+# ------------------------------------------------------------------ Listing
 async def list_actions(
     conn: AsyncConnection, *, status: str | None = None, limit: int = 50
 ) -> list[dict]:

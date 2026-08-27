@@ -11,11 +11,10 @@ interface DemoUser {
 }
 
 /**
- * מסך התחברות עם בורר משתמשי דמו.
+ * Login screen with a demo-user selector.
  *
- * הבורר אינו קיצור דרך — הוא **הדמו עצמו**: אותה שאלה, שני משתמשים,
- * שתי תוצאות. בלי מעבר מהיר בין תפקידים, הדבר המעניין ביותר במערכת
- * דורש שלוש דקות של הקלדה כדי להראות.
+ * The selector is the demo itself: ask the same question as two users and
+ * compare the results without manually entering credentials.
  */
 @Component({
   selector: 'app-login',
@@ -62,9 +61,9 @@ interface DemoUser {
   template: `
     <div class="wrap">
       <div class="card">
-        <h1>Meridian — מוח ארגוני</h1>
+        <h1>Meridian - Enterprise Knowledge</h1>
         <p class="muted small">
-          בחר משתמש דמו. אותה שאלה תיענה אחרת לכל תפקיד — זו הנקודה.
+          Choose a demo user. The same question produces a role-specific answer.
         </p>
 
         <div class="users">
@@ -81,10 +80,10 @@ interface DemoUser {
           }
         </div>
 
-        <label for="email">דוא״ל</label>
+        <label for="email">Email</label>
         <input id="email" [ngModel]="email()" (ngModelChange)="email.set($event)" autocomplete="username" />
 
-        <label for="password" style="margin-top:10px">סיסמה</label>
+        <label for="password" style="margin-top:10px">Password</label>
         <input
           id="password"
           type="password"
@@ -99,7 +98,7 @@ interface DemoUser {
         }
 
         <button style="margin-top:16px;width:100%" [disabled]="auth.loading()" (click)="submit()">
-          {{ auth.loading() ? 'מתחבר…' : 'התחבר' }}
+          {{ auth.loading() ? 'Signing in…' : 'Sign in' }}
         </button>
       </div>
     </div>
@@ -111,11 +110,11 @@ export class LoginComponent {
   private readonly route = inject(ActivatedRoute);
 
   readonly demoUsers: DemoUser[] = [
-    { email: 'yuval@meridian.local', label: 'יובל כהן', hint: 'כספים' },
-    { email: 'dana@meridian.local', label: 'דנה לוי', hint: 'משאבי אנוש' },
-    { email: 'maya@meridian.local', label: 'מאיה בר', hint: 'שירות לקוחות' },
-    { email: 'ori@meridian.local', label: 'אורי שמש', hint: 'עובד' },
-    { email: 'admin@meridian.local', label: 'רז', hint: 'מנהל מערכת' },
+    { email: 'yuval@meridian.local', label: 'Yuval Cohen', hint: 'Finance' },
+    { email: 'dana@meridian.local', label: 'Dana Levi', hint: 'Human Resources' },
+    { email: 'maya@meridian.local', label: 'Maya Bar', hint: 'Customer Service' },
+    { email: 'ori@meridian.local', label: 'Ori Shemesh', hint: 'Employee' },
+    { email: 'admin@meridian.local', label: 'Raz', hint: 'Administrator' },
   ];
 
   readonly email = signal(this.demoUsers[0].email);

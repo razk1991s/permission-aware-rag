@@ -1,8 +1,8 @@
-"""חוזה אחיד לספקי מודלים.
+"""Common contract for model providers.
 
-כל קריאה למודל במערכת עוברת דרך הממשק הזה, ודרך השער ב-app/llm/gateway.py.
-המשמעות המעשית: החלפת Ollama ב-Azure OpenAI היא הוספת מימוש אחד, בלי לגעת
-בשום קוד שקורא למודל.
+Every model call passes through this interface and the gateway in
+app/llm/gateway.py. Replacing Ollama with Azure OpenAI therefore requires one
+provider implementation without changing model callers.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ class LLMResponse:
 
 
 class LLMError(RuntimeError):
-    """כשל שניתן לנסות שוב מולו — timeout, מודל לא זמין, שגיאת רשת."""
+    """A retryable failure such as a timeout, unavailable model, or network error."""
 
 
 class LLMProvider(ABC):

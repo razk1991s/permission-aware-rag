@@ -3,44 +3,44 @@ import { Routes } from '@angular/router';
 import { authGuard } from './core/auth.guard';
 
 /**
- * כל המסכים נטענים lazy. זה לא אופטימיזציה מוקדמת — מסך הטרייסים
- * מושך טבלאות כבדות, ואין סיבה שהוא ייטען למי שרק שואל שאלה.
+ * All screens are lazy-loaded. The trace screen loads large tables and should
+ * not be loaded for users who only ask questions.
  */
 export const routes: Routes = [
   {
     path: 'login',
-    title: 'התחברות · Meridian',
+    title: 'Login · Meridian',
     loadComponent: () => import('./features/login/login.component').then((m) => m.LoginComponent),
   },
   {
     path: 'chat',
-    title: 'צ׳אט · Meridian',
+    title: 'Chat · Meridian',
     canActivate: [authGuard],
     loadComponent: () => import('./features/chat/chat.component').then((m) => m.ChatComponent),
   },
   {
     path: 'approvals',
-    title: 'אישורים · Meridian',
+    title: 'Approvals · Meridian',
     canActivate: [authGuard],
     loadComponent: () =>
       import('./features/approvals/approvals.component').then((m) => m.ApprovalsComponent),
   },
   {
     path: 'traces',
-    title: 'טרייסים · Meridian',
+    title: 'Traces · Meridian',
     canActivate: [authGuard],
     loadComponent: () => import('./features/traces/traces.component').then((m) => m.TracesComponent),
   },
   {
     path: 'traces/:id',
-    title: 'טרייס · Meridian',
+    title: 'Trace · Meridian',
     canActivate: [authGuard],
     loadComponent: () =>
       import('./features/traces/trace-detail.component').then((m) => m.TraceDetailComponent),
   },
   {
     path: 'documents',
-    title: 'מסמכים · Meridian',
+    title: 'Documents · Meridian',
     canActivate: [authGuard],
     loadComponent: () =>
       import('./features/documents/documents.component').then((m) => m.DocumentsComponent),

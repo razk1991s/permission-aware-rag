@@ -1,17 +1,16 @@
-"""הסרת מזהים לפני שליחה למודל.
+"""Remove identifiers before sending content to a model.
 
-גם כשהמודל מקומי — התהליך הוא מה שנדרש בארגון פיננסי, והוא מה שנשאלים
-עליו בראיון. חשוב מכך: אם ביום מן הימים השער ינותב לספק ענן, ההסרה כבר
-במקום ואינה תלויה בזכירה של מישהו.
+This process is appropriate even with local models and is already in place if
+the gateway is later routed to a cloud provider.
 """
 
 from __future__ import annotations
 
 import re
 
-# --- מספר זהות ישראלי: 9 ספרות עם ספרת ביקורת ---
+# --- Israeli national ID: nine digits with a check digit ---
 _ID = re.compile(r"(?<!\d)(\d{9})(?!\d)")
-# --- כרטיס אשראי: 13–19 ספרות עם מפרידים אפשריים ---
+# --- Credit card: 13-19 digits with optional separators ---
 _CARD = re.compile(r"(?<!\d)(?:\d[ -]?){13,19}(?!\d)")
 _IBAN = re.compile(r"\b[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b")
 _EMAIL = re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b")
@@ -31,7 +30,7 @@ def luhn_ok(digits: str) -> bool:
 
 
 def israeli_id_ok(digits: str) -> bool:
-    """ספרת ביקורת של תעודת זהות — מונע סימון של כל מספר בן 9 ספרות."""
+    """Validate the ID check digit so every nine-digit number is not flagged."""
     if len(digits) != 9 or not digits.isdigit():
         return False
     total = 0
@@ -42,7 +41,7 @@ def israeli_id_ok(digits: str) -> bool:
 
 
 def redact(text: str) -> str:
-    """מחליף מזהים בתגיות. שומר על אורך הטקסט קריא ועל ההקשר סביבו."""
+    """Replace identifiers with tags while preserving readable context."""
     if not text:
         return text
 
@@ -62,7 +61,7 @@ def redact(text: str) -> str:
 
 
 def find_pii(text: str) -> list[str]:
-    """מחזיר את סוגי המזהים שנמצאו — לשימוש בבקרה ובדוחות, לא בהסרה."""
+    """Return identifier types found for monitoring and reports, not redaction."""
     found: list[str] = []
     if any(israeli_id_ok(m.group(1)) for m in _ID.finditer(text)):
         found.append("ID")

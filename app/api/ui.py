@@ -1,16 +1,15 @@
-"""הגשת אפליקציית ה-Angular.
+"""Serve the Angular application.
 
-שני מצבי הרצה, ובכוונה:
+There are intentionally two run modes:
 
-**פיתוח** — `ng serve` על 4200 עם proxy ל-8000. HMR מלא, וה-CORS
-מוגדר רק לסביבת dev.
+**Development** - `ng serve` on port 4200 with a proxy to port 8000.
+Full HMR is enabled and CORS is limited to dev.
 
-**פרודקשן** — `ng build` יוצר `ui/dist/browser`, ו-FastAPI מגיש אותו.
-מכאן שירות אחד, פורט אחד, ואין CORS בכלל — הדפדפן וה-API על אותו
-origin, מה שגם מייתר שאלות של cookies ו-preflight.
+**Production** - `ng build` creates `ui/dist/browser`, which FastAPI serves.
+There is one service, one port, and no CORS because browser and API share an origin.
 
-חלוקת מרחב השמות: `/api/*` שייך לשרת, `/health` ו-`/stats` לבדיקות
-חיים, וכל השאר שייך ל-Angular Router.
+Namespace split: `/api/*` belongs to the server, `/health` and `/stats` are
+health checks, and everything else belongs to the Angular Router.
 """
 
 from __future__ import annotations
@@ -39,7 +38,7 @@ def dist_dir() -> Path | None:
 
 
 _PLACEHOLDER = """<!doctype html>
-<html lang="he" dir="rtl"><head><meta charset="utf-8"><title>Meridian</title>
+<html lang="en" dir="ltr"><head><meta charset="utf-8"><title>Meridian</title>
 <style>
 body{font:16px/1.7 system-ui,Arial,sans-serif;max-width:640px;margin:14vh auto;padding:0 20px;
      background:#f3f5f8;color:#141a23}
@@ -47,27 +46,26 @@ body{font:16px/1.7 system-ui,Arial,sans-serif;max-width:640px;margin:14vh auto;p
 code{background:#0002;padding:.15em .4em;border-radius:4px;direction:ltr;display:inline-block}
 a{color:#1f5fa8}
 </style></head><body>
-<h1>ה-API פועל, אבל ממשק המשתמש עוד לא נבנה</h1>
-<p>אפליקציית ה-Angular לא נמצאה ב-<code>ui/dist</code>. יש שתי דרכים להריץ אותה:</p>
-<h3>פיתוח</h3>
-<p><code>make ui-dev</code> — מריץ <code>ng serve</code> על
-<a href="http://localhost:4200">localhost:4200</a> עם proxy לשרת הזה.</p>
-<h3>פרודקשן</h3>
-<p><code>make ui-build</code> — בונה לסטטי, ואז הכתובת הזו תגיש את האפליקציה.</p>
-<p style="margin-top:2rem"><a href="/docs">תיעוד ה-API →</a></p>
+<h1>The API is running, but the UI has not been built</h1>
+<p>The Angular application was not found in <code>ui/dist</code>. There are two ways to run it:</p>
+<h3>Development</h3>
+<p><code>make ui-dev</code> runs <code>ng serve</code> on
+<a href="http://localhost:4200">localhost:4200</a> with a proxy to this server.</p>
+<h3>Production</h3>
+<p><code>make ui-build</code> creates the static build, which this URL will serve.</p>
+<p style="margin-top:2rem"><a href="/docs">API documentation -></a></p>
 </body></html>"""
 
-# נתיבים ששייכים לשרת ואסור שייפלו ל-SPA. בלי הרשימה הזו, בקשה
-# ל-/api/typo הייתה מקבלת index.html עם קוד 200 — והלקוח היה מנסה
-# לפרסר HTML כ-JSON ומדווח על שגיאה במקום הלא נכון.
+# Server paths must not fall through to the SPA. Without this list, an unknown
+# API path could receive index.html with 200 and be parsed as JSON by the client.
 _SERVER_PREFIXES = ("api/", "docs", "redoc", "openapi.json", "health", "stats")
 
 
 def mount_spa(app) -> None:
-    """מרכיב את ה-SPA על שורש האפליקציה, אם הוא נבנה.
+    """Mount the built SPA at the application root, if available.
 
-    נקרא מ-main.py **אחרי** רישום כל שאר הנתיבים, כי ה-catch-all כאן
-    תופס כל בקשה שלא הותאמה לפניו.
+    Called from main.py **after** all other routes are registered because this
+    catch-all handles unmatched requests.
     """
     dist = dist_dir()
     if dist is None:
@@ -82,8 +80,7 @@ def mount_spa(app) -> None:
     log.info("serving Angular build from %s", dist)
     index = dist / "index.html"
 
-    # HEAD ולא רק GET: בודקי זמינות ו-proxies שולחים HEAD, ו-FastAPI
-    # אינו מוסיף אותו מעצמו כפי ש-Starlette עושה לנתיב רגיל.
+    # Support HEAD as well as GET because health checks and proxies send HEAD.
     @app.api_route("/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
     async def spa(full_path: str):
         if full_path.startswith(_SERVER_PREFIXES):
@@ -91,27 +88,23 @@ def mount_spa(app) -> None:
 
         if full_path:
             candidate = (dist / full_path).resolve()
-            # resolve() לפני ההשוואה: בלעדיו '../../etc/passwd' היה
-            # יוצא מתיקיית הבנייה. אחריו, נתיב שאינו מתחת ל-dist נדחה.
+            # Resolve before comparing so paths such as ../../etc/passwd cannot
+            # escape the build directory.
             if dist in candidate.parents and candidate.is_file():
                 return FileResponse(candidate, headers=_asset_headers(candidate))
 
-            # קובץ עם סיומת שלא נמצא הוא 404 אמיתי, לא ניתוב. אחרת
-            # chunk חסר היה מוחזר כ-HTML, והדפדפן היה מתלונן על MIME
-            # במקום להצביע על הקובץ שחסר.
+            # A missing file with an extension is a real 404, not an SPA route.
             if Path(full_path).suffix:
                 raise HTTPException(status_code=404, detail="Not Found")
 
-        # כל השאר הוא נתיב Angular: /chat, /traces/<uuid>, /documents.
-        # זה מה שמאפשר רענון דף ושיתוף קישור עמוק לטרייס.
+        # Everything else is an Angular route such as /chat or /traces/<uuid>.
         return FileResponse(index, headers={"Cache-Control": "no-cache"})
 
 
 def _asset_headers(path: Path) -> dict[str, str]:
-    """קבצים עם hash בשם הם immutable; השאר לא נשמרים במטמון.
+    """Hashed filenames are immutable; other files are not cached.
 
-    ה-hash משתנה בכל בנייה, ולכן אין סיכון להגיש גרסה ישנה — וזה בדיוק
-    מה שהופך שנה של cache לבטוחה.
+    The hash changes on every build, making a one-year cache safe.
     """
     hashed = len(path.stem.rsplit("-", 1)) == 2 and len(path.stem.rsplit("-", 1)[1]) >= 8
     if hashed and path.suffix in {".js", ".css", ".woff2", ".woff"}:

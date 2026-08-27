@@ -59,14 +59,14 @@ describe('AuthService', () => {
     http.expectOne('/api/auth/login').flush({ detail: 'bad' }, { status: 401, statusText: 'x' });
 
     expect(await pending).toBeFalse();
-    expect(service.error()).toBe('פרטי התחברות שגויים');
+    expect(service.error()).toBe('Invalid login credentials');
     expect(service.isAuthenticated()).toBeFalse();
     expect(localStorage.getItem('meridian.token')).toBeNull();
   });
 
   it('treats client-side roles as display state only', () => {
-    // התפקידים בצד הלקוח אינם מקור סמכות. הבדיקה מתעדת את זה: אין
-    // באובייקט הזה שום דרך "להעניק" הרשאה — רק לשקף מה שהשרת אמר.
+    // Client roles are not an authority source. This test documents that the
+    // object can only reflect what the server said, never grant permission.
     expect(service.isAdmin()).toBeFalse();
     expect(Object.keys(service).some((k) => /grant|setRole/i.test(k))).toBeFalse();
   });

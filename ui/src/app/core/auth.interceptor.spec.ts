@@ -44,8 +44,8 @@ describe('authInterceptor', () => {
   });
 
   it('does not log out when the login call itself returns 401', () => {
-    // אחרת ניסיון התחברות כושל היה מפעיל ניתוק וניווט מיותר, ומסתיר
-    // את הודעת השגיאה במסך ההתחברות.
+    // Otherwise a failed login would trigger unnecessary logout navigation
+    // and hide the error message on the login screen.
     http.post('/api/auth/login', {}).subscribe({ error: () => undefined });
     mock.expectOne('/api/auth/login').flush(null, { status: 401, statusText: 'Unauthorized' });
     expect(auth.logout).not.toHaveBeenCalled();

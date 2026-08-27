@@ -1,4 +1,4 @@
-"""נקודת הכניסה של השירות."""
+"""Service entry point."""
 
 from __future__ import annotations
 
@@ -25,9 +25,9 @@ log = logging.getLogger("meridian")
 async def lifespan(app: FastAPI):
     if not settings.is_dev:
         if settings.jwt_secret == "dev-only-change-me":
-            raise RuntimeError("JWT_SECRET חייב להיות מוגדר מחוץ לסביבת dev")
+            raise RuntimeError("JWT_SECRET must be configured outside dev")
         if settings.llm_provider == "stub" or settings.embedding_provider == "stub":
-            raise RuntimeError("אסור להריץ עם ספק stub מחוץ לסביבת פיתוח")
+            raise RuntimeError("The stub provider is not allowed outside development")
 
     applied = await run_migrations()
     if applied:
@@ -41,16 +41,16 @@ app = FastAPI(
     title=settings.app_name,
     version="1.0.0",
     description=(
-        "פלטפורמת ידע ארגונית מבוססת RAG: שליפה היברידית עם דירוג מחדש, "
-        "בקרת גישה ברמת מסמך הנאכפת ב-SQL, סוכן עם כלים מוגבלים, "
-        "שערי אישור מבוססי־נוהל, והערכה אוטומטית."
+        "Enterprise RAG knowledge platform: hybrid retrieval with reranking, "
+        "SQL-enforced document access control, a restricted-tool agent, "
+        "procedure-driven approval gates, and automated evaluation."
     ),
     lifespan=lifespan,
 )
 
-# --- CORS: רק בפיתוח, ורק ל-ng serve ---
-# בפרודקשן ה-Angular מוגש מאותו origin, ולכן אין CORS בכלל. רשימת
-# מקורות פתוחה בפרודקשן היא בדיוק סוג ההגדרה שנשארת בטעות.
+# --- CORS: development only, for ng serve only ---
+# In production Angular is served from the same origin, so CORS is disabled.
+# An open production origin list is exactly the kind of setting left by mistake.
 if settings.is_dev:
     app.add_middleware(
         CORSMiddleware,

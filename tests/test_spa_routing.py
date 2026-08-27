@@ -1,13 +1,12 @@
-"""חלוקת מרחב השמות בין ה-API לבין ה-Angular Router.
+"""Namespace split between the API and the Angular Router.
 
-הבדיקות האלה קיימות בגלל באג אמיתי. בגרסה הראשונה כל נתיב API נרשם
-פעמיים — גם ישירות וגם תחת /api — כדי שסקריפטים לא יצטרכו קידומת.
-אבל /traces ו-/documents הם גם נתיבי Angular, ולכן רענון דף על
-/traces/<uuid> נתפס על ידי ה-API והחזיר 401 JSON במקום את האפליקציה.
-הקישור העמוק לטרייס הוא בדיוק מה ששולחים למישהו כשרוצים שיסתכל על
-שליפה מסוימת, ולכן זה לא באג קוסמטי.
+These tests exist because of a real bug. The first version registered API routes
+both directly and under /api so scripts did not need a prefix. But /traces and
+/documents are also Angular routes, so refreshing /traces/<uuid> returned 401
+JSON instead of the application. Deep trace links are shared to inspect a
+specific retrieval, so this is not a cosmetic bug.
 
-התיקון: /api שייך לשרת, השורש שייך ל-SPA, ו-/health חי בשניהם.
+The fix: /api belongs to the server, the root belongs to the SPA, and /health lives in both.
 """
 
 from __future__ import annotations
@@ -19,7 +18,7 @@ from app.api.ui import dist_dir
 from app.main import app
 
 HAS_BUILD = dist_dir() is not None
-needs_build = pytest.mark.skipif(HAS_BUILD is False, reason="ui/dist לא נבנה (make ui-build)")
+needs_build = pytest.mark.skipif(HAS_BUILD is False, reason="ui/dist has not been built (make ui-build)")
 
 
 @pytest.fixture(scope="module")
@@ -31,14 +30,14 @@ def client():
 def test_api_routes_live_only_under_the_api_prefix():
     paths = set(app.openapi()["paths"])
     assert "/api/auth/login" in paths
-    # אם אחד מאלה חוזר, הקישורים העמוקים של ה-SPA נשברים שוב.
+    # If one of these returns, SPA deep links break again.
     for collision in ("/auth/login", "/traces", "/documents", "/chat"):
-        assert collision not in paths, f"{collision} מתנגש עם נתיב Angular"
+        assert collision not in paths, f"{collision} conflicts with an Angular route"
     assert not any(p.startswith("/traces/") for p in paths)
 
 
 def test_health_is_reachable_both_ways(client):
-    """HEALTHCHECK של Docker פונה ל-/health; הממשק פונה ל-/api/health."""
+    """Docker HEALTHCHECK uses /health; the UI uses /api/health."""
     for path in ("/health", "/api/health"):
         resp = client.get(path)
         assert resp.status_code == 200
@@ -51,13 +50,13 @@ def test_deep_links_return_the_app_shell(client, path):
     resp = client.get(path)
     assert resp.status_code == 200
     assert "<app-root" in resp.text
-    # index.html לעולם לא נשמר במטמון — אחרת בנייה חדשה לא מגיעה למשתמש
+    # index.html is never cached, otherwise new builds would not reach users.
     assert resp.headers.get("cache-control") == "no-cache"
 
 
 @needs_build
 def test_an_unknown_api_path_is_a_404_and_not_the_app_shell(client):
-    """אחרת הלקוח היה מנסה לפרסר HTML כ-JSON ומדווח על שגיאה במקום הלא נכון."""
+    """Otherwise the client would parse HTML as JSON and report the wrong error."""
     resp = client.get("/api/typo")
     assert resp.status_code == 404
     assert "<app-root" not in resp.text
@@ -65,7 +64,7 @@ def test_an_unknown_api_path_is_a_404_and_not_the_app_shell(client):
 
 @needs_build
 def test_a_missing_asset_is_a_404_and_not_the_app_shell(client):
-    """chunk חסר חייב להיראות כחסר, לא כ-HTML עם MIME שגוי."""
+    """A missing chunk must remain a 404 rather than HTML with the wrong MIME type."""
     resp = client.get("/missing-chunk.js")
     assert resp.status_code == 404
 
@@ -81,12 +80,12 @@ def test_path_traversal_cannot_escape_the_build_directory(client):
 
 @needs_build
 def test_hashed_assets_are_served_immutable(client):
-    """ה-hash משתנה בכל בנייה, ולכן שנה של cache בטוחה — ומשנה את זמן הטעינה."""
+    """The hash changes on every build, making a one-year cache safe and improving load time."""
     import re
 
     shell = client.get("/").text
     match = re.search(r'src="(main-[A-Za-z0-9]+\.js)"', shell)
-    assert match, "לא נמצא main-<hash>.js ב-index.html"
+    assert match, "main-<hash>.js was not found in index.html"
     resp = client.get(f"/{match.group(1)}")
     assert resp.status_code == 200
     assert "immutable" in resp.headers.get("cache-control", "")

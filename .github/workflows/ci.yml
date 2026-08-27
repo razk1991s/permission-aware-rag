@@ -22,9 +22,8 @@ jobs:
           --health-interval 5s --health-timeout 5s --health-retries 12
 
     env:
-      # ה-CI רץ מול ספק דטרמיניסטי: הוא בודק צנרת, אכיפת הרשאות והגנות
-      # הזרקה — כולם ארכיטקטוניים ולא תלויי מודל. מדדי איכות ניסוח נמדדים
-      # nightly מול Ollama, לא כאן.
+      # CI uses a deterministic provider for pipeline, authorization, and
+      # injection checks. Generation quality is measured nightly with Ollama.
       DATABASE_URL: postgresql+asyncpg://rag:ragpass@localhost:5432/ragdb
       LLM_PROVIDER: stub
       EMBEDDING_PROVIDER: stub
@@ -87,13 +86,13 @@ jobs:
         working-directory: ui
         run: npx tsc --noEmit -p tsconfig.app.json
 
-      # --no-sandbox נדרש בתוך ה-runner; ה-launcher מוגדר ב-karma.conf.js
+      # --no-sandbox is required inside the runner; the launcher is configured in karma.conf.js.
       - name: Unit tests
         working-directory: ui
         run: npx ng test --watch=false --browsers=ChromeHeadlessNoSandbox
 
-      # הבנייה היא חלק מה-CI ולא רק מהאריזה: שגיאת תבנית ב-Angular
-      # מתגלה רק בקומפילציה, ובלי השלב הזה היא הייתה מגיעה ל-main.
+      # The build belongs in CI because Angular template errors are detected
+      # during compilation and would otherwise reach main.
       - name: Build
         working-directory: ui
         run: npm run build
