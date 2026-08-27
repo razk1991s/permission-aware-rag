@@ -60,19 +60,28 @@ function Invoke-Native {
     & $File @Arguments
     # "נכשל: <מה>" ולא "<מה> נכשל" — כדי שהמשפט יתפרק נכון בעברית
     # בלי קשר למין של התיאור שהועבר.
-    if ($LASTEXITCODE -ne 0) { throw "נכשל: $What (קוד יציאה $LASTEXITCODE)" }
+    if ($LASTEXITCODE -ne 0) { throw "Failed: $What (exit code $LASTEXITCODE)" }
 }
 
 function Assert-Venv {
     if (-not (Test-Path $Py)) {
-        throw "סביבת הפייתון לא נמצאה. הרץ קודם:  .\make.ps1 install"
+        throw "Python virtual environment not found. Run first: .\make.ps1 install"
     }
 }
 
 function Assert-Command {
     param([string] $Name, [string] $Hint)
     if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
-        throw "$Name לא נמצא ב-PATH. $Hint"
+        throw "$Name was not found on PATH. $Hint"
+    }
+}
+
+function Assert-DockerReady {
+    Assert-Command 'docker' 'Install Docker Desktop for Windows.'
+    $dockerInfo = docker info 2>&1
+    $dockerExitCode = $LASTEXITCODE
+    if ($dockerExitCode -ne 0) {
+        throw 'Docker Desktop is not running. Open Docker Desktop and wait until it is ready.'
     }
 }
 
@@ -83,46 +92,46 @@ function Invoke-SqlFile {
         עם קוד 0, וטעינה חלקית נראית כמו הצלחה. #>
     param([Parameter(Mandatory = $true)] [string] $Path)
 
-    if (-not (Test-Path $Path)) { throw "קובץ SQL לא נמצא: $Path" }
+    if (-not (Test-Path $Path)) { throw "SQL file not found: $Path" }
 
     $name   = [System.IO.Path]::GetFileName($Path)
     $remote = "/tmp/$name"
 
-    Write-Step "psql — $name"
-    Invoke-Native 'docker' @('compose', 'cp', $Path, "db:$remote") "העתקת $name לקונטיינר"
+    Write-Step "psql - $name"
+    Invoke-Native 'docker' @('compose', 'cp', $Path, "db:$remote") "Copying $name to the database container"
     Invoke-Native 'docker' @(
         'compose', 'exec', '-T', 'db',
         'psql', '-v', 'ON_ERROR_STOP=1', '-U', $PgUser, '-d', $PgDb, '-f', $remote
-    ) "הרצת $name"
+    ) "Running $name"
 }
 
 function Wait-ForDatabase {
     param([int] $TimeoutSeconds = 90)
-    Write-Step 'ממתין למסד הנתונים...'
+    Write-Step 'Waiting for the database...'
     for ($i = 0; $i -lt $TimeoutSeconds; $i++) {
         $null = docker compose exec -T db pg_isready -U $PgUser -d $PgDb 2>&1
-        if ($LASTEXITCODE -eq 0) { Write-Note 'מסד הנתונים מוכן.'; return }
+        if ($LASTEXITCODE -eq 0) { Write-Note 'Database is ready.'; return }
         Start-Sleep -Seconds 1
     }
-    throw "מסד הנתונים לא ענה תוך $TimeoutSeconds שניות. בדוק:  docker compose logs db"
+    throw "Database did not respond within $TimeoutSeconds seconds. Check: docker compose logs db"
 }
 
 function Test-OllamaReady {
     if (-not (Get-Command 'ollama' -ErrorAction SilentlyContinue)) {
-        Write-Alert 'Ollama לא מותקן. הורד מ-https://ollama.com/download/windows'
-        Write-Note  'אחרי ההתקנה:  .\make.ps1 models'
+        Write-Alert 'Ollama is not installed. Download it from https://ollama.com/download/windows'
+        Write-Note  'After installation: .\make.ps1 models'
         return
     }
     $tags = (& ollama list) 2>&1
     if ($LASTEXITCODE -ne 0) {
-        Write-Alert 'Ollama מותקן אבל לא רץ. פתח את האפליקציה, או הרץ:  ollama serve'
+        Write-Alert 'Ollama is installed but not running. Open the app or run: ollama serve'
         return
     }
     if ($tags -notmatch 'qwen2\.5') {
-        Write-Alert 'המודלים עוד לא הורדו. הרץ:  .\make.ps1 models'
+        Write-Alert 'Ollama models are not downloaded. Run: .\make.ps1 models'
         return
     }
-    Write-Note 'Ollama מוכן.'
+    Write-Note 'Ollama is ready.'
 }
 
 function Invoke-Self {
@@ -142,56 +151,56 @@ switch ($Target) {
 
     'help' {
 @'
-שימוש:  .\make.ps1 <יעד>
+Usage:  .\make.ps1 <target>
 
---- תשתית ---
-  up            מרים PostgreSQL (Ollama רץ נייטיב, לא בקונטיינר)
-  down          עוצר את התשתית
-  logs          לוגים של הקונטיינרים
-  install       יוצר .venv ומתקין תלויות פייתון
-  models        מוריד את מודלי Ollama
-  migrate       מריץ מיגרציות
-  seed          טוען משתמשי דמו ונתונים תפעוליים
-  index         בונה אינדקס HNSW (אחרי ingest)
-  demo          טעינה מלאה מאפס: migrate + seed + ingest + index
+--- Infrastructure ---
+    up            Start PostgreSQL (Ollama runs natively on Windows)
+    down          Stop the infrastructure
+    logs          Show container logs
+    install       Create .venv and install Python dependencies
+    models        Download Ollama models
+    migrate       Run database migrations
+    seed          Load demo users and operational data
+    index         Build the HNSW index (after ingest)
+    demo          Full setup: migrate + seed + ingest + index
 
---- שרת ---
-  dev           מריץ את ה-API עם reload על 8000
-  dry-run       פרסור וחיתוך בלבד, בלי מסד נתונים
-  ingest-fast   טעינת הקורפוס בלי הטמעות (מהיר)
-  ingest        טעינת הקורפוס עם הטמעות
-  test          pytest
-  mcp           שרת MCP על stdio
+--- Server ---
+    dev           Run the API with reload on port 8000
+    dry-run       Parse and chunk only, without a database
+    ingest-fast   Load the corpus without embeddings (fast)
+    ingest        Load the corpus with embeddings
+    test          Run pytest
+    mcp           Run the MCP server over stdio
 
---- ממשק (Angular) ---
-  ui-install    npm ci בתיקיית ui
-  ui-dev        ng serve על 4200 עם proxy ל-8000
-  ui-build      בונה ל-ui\dist; אחריו 'dev' מגיש הכול מפורט אחד
-  ui-test       בדיקות יחידה של Angular
-  ui-lint       בדיקת טיפוסים (tsc --noEmit)
+--- Angular UI ---
+    ui-install    Run npm ci in the ui directory
+    ui-dev        Run ng serve on port 4200 with a proxy to 8000
+    ui-build      Build ui\dist; dev then serves everything on one port
+    ui-test       Run Angular unit tests
+    ui-lint       Run the TypeScript check (tsc --noEmit)
 
---- מדידה ---
-  eval          חבילת ההערכה, כל הקונפיגורציות
-  eval-gate     הערכה + שערי רגרסיה
-  injection     חבילת ההזרקות
-  psql          מסוף psql אינטראקטיבי
-  clean         מוחק .venv, dist ותיקיות מטמון
+--- Evaluation ---
+    eval          Run the evaluation suite for all configurations
+    eval-gate     Run evaluation and regression gates
+    injection     Run the prompt-injection suite
+    psql          Open an interactive psql shell
+    clean         Delete .venv, dist, and cache directories
 '@ | Write-Host
     }
 
     # ---------------------------------------------------------- תשתית
 
     'up' {
-        Assert-Command 'docker' 'התקן Docker Desktop for Windows.'
-        Write-Step 'מרים את מסד הנתונים'
-        Write-Note 'רק db — Ollama רץ נייטיב על ווינדוס כדי לקבל GPU.'
-        Invoke-Native 'docker' @('compose', 'up', '-d', 'db') 'הרמת מסד הנתונים'
+        Assert-DockerReady
+        Write-Step 'Starting the database'
+        Write-Note 'Only db - Ollama runs natively on Windows for GPU access.'
+        Invoke-Native 'docker' @('compose', 'up', '-d', 'db') 'Starting the database'
         Wait-ForDatabase
         Test-OllamaReady
     }
 
     'down' {
-        Invoke-Native 'docker' @('compose', 'down') 'עצירת התשתית'
+        Invoke-Native 'docker' @('compose', 'down') 'Stopping the infrastructure'
     }
 
     'logs' {
@@ -356,6 +365,6 @@ switch ($Target) {
 }
 catch {
     Write-Host ''
-    Write-Host "שגיאה: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
     exit 1
 }
